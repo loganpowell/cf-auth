@@ -1,0 +1,63 @@
+# Cloudflare Workers configuration
+# See: https://developers.cloudflare.com/workers/configuration/
+
+name = "auth-service"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Account ID will be set via environment variable or during deployment
+# account_id = ""
+
+[observability]
+enabled = true
+
+# D1 Database binding (local development)
+[[d1_databases]]
+binding = "DB"
+database_name = "auth-db"
+database_id = "f09cd536-1f82-439c-b507-a30051987b24"
+
+# KV Namespace bindings (local development)
+[[kv_namespaces]]
+binding = "RATE_LIMITER"
+id = "b34f18f445984da38c54f92477b58212"
+
+[[kv_namespaces]]
+binding = "TOKEN_BLACKLIST"
+id = "808f4bf8980145cb83bc5bf152e9b976"
+
+[[kv_namespaces]]
+binding = "SESSION_CACHE"
+id = "df4847c009a94363bf7cfdad791268cf"
+
+# Environment variables (will be set via wrangler secret for production)
+[vars]
+ENVIRONMENT = "development"
+
+# Secrets (use `wrangler secret put <KEY>` to set)
+# JWT_SECRET
+# OAUTH_GITHUB_CLIENT_ID
+# OAUTH_GITHUB_CLIENT_SECRET
+# OAUTH_GOOGLE_CLIENT_ID
+# OAUTH_GOOGLE_CLIENT_SECRET
+# ENCRYPTION_KEY
+
+# Routes (will be configured during deployment)
+# routes = [
+#   { pattern = "auth.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]
+
+# Build configuration
+[build]
+command = "pnpm run build"
+
+# Development configuration
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Durable Objects (if needed in future)
+# [[durable_objects.bindings]]
+# name = "AUTH_SESSION"
+# class_name = "AuthSession"
+# script_name = "auth-service"

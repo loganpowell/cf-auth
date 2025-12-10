@@ -1,0 +1,42 @@
+{
+  "name": "auth-service",
+  "version": "0.1.0",
+  "description": "Production-ready authentication service on Cloudflare",
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:backend": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "tsc && pnpm run compile:emails",
+    "compile:emails": "tsx scripts/compile-emails.ts",
+    "test": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "type-check": "tsc --noEmit",
+    "pulumi:up": "cd infrastructure && pulumi up",
+    "pulumi:preview": "cd infrastructure && pulumi preview",
+    "pulumi:destroy": "cd infrastructure && pulumi destroy"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "arctic": "^1.9.2",
+    "hono": "^4.6.14",
+    "jose": "^5.9.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@pulumi/cloudflare": "^5.42.0",
+    "@pulumi/pulumi": "^3.138.0",
+    "@types/node": "^22.10.1",
+    "html-to-text": "^9.0.5",
+    "mjml": "^4.15.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5",
+    "wrangler": "^4.53.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

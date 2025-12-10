@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+.output/
+.wrangler/
+.cache/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Pulumi
+.pulumi/
+Pulumi.*.yaml
+*.backup
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+
+# Local D1 database
+.mf/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+.temp/
+
+# Compiled email templates (generated from MJML)
+src/templates/compiled/*.html
+src/templates/compiled/*.txt
+
+# Demo app (has its own .gitignore)
+demo-app/node_modules/
+demo-app/dist/
+demo-app/.output/

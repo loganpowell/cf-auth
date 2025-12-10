@@ -1,0 +1,7 @@
+name: auth-service
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Authentication and authorization service infrastructure on Cloudflare
+main: infrastructure/

@@ -1,0 +1,13 @@
+{
+  "name": "auth-service-infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^22.x",
+    "typescript": "^5.x"
+  },
+  "dependencies": {
+    "@pulumi/pulumi": "^3.x",
+    "@pulumi/cloudflare": "^5.x"
+  }
+}
