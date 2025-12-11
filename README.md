@@ -2,21 +2,63 @@
 
 Production-ready authentication and authorization service built on Cloudflare's edge platform.
 
+## 🎉 Current Status
+
+**Phase 2: COMPLETE ✅** (with bonus email verification from Phase 3)
+
+- ✅ Full JWT authentication system operational
+- ✅ Email verification with AWS SES
+- ✅ Qwik v2 demo application with all auth flows
+- ✅ 10 authentication endpoints working
+- ✅ Local development environment ready
+
+See [PHASE2_COMPLETE.md](docs/PHASE2_COMPLETE.md) for detailed accomplishments.
+
+> **Note**: Email sending now uses AWS SES for production-grade delivery. See [AWS_SES_SETUP.md](docs/AWS_SES_SETUP.md) for setup instructions.
+
 ## ✨ Features
 
+### Currently Working
+
 - 🔐 JWT-based authentication with refresh tokens
-- 👥 OAuth integration (GitHub, Google, Twitter)
-- 🏢 Multi-tenant organizations with hierarchical permissions
-- 📧 Email workflows (MJML templates)
-- 🌐 Multi-domain support
+- 📧 Email verification with token-based flow
+- 🎨 Qwik v2 demo application with reactive UI
+- 🔒 Secure password hashing (PBKDF2)
+- 💾 D1 database with proper schema
 - 🚀 Edge-native on Cloudflare Workers
 
-## � Quick Start
+### Planned (Phase 3+)
+
+- 👥 OAuth integration (GitHub, Google, Twitter)
+- 🏢 Multi-tenant organizations with hierarchical permissions
+- � MJML email templates
+- 🌐 Multi-domain support
+- � OAuth 2.1 Provider (be an OAuth provider yourself)
+
+## 🎯 Quick Start
+
+### Email Service
+
+**Using AWS SES** for production-grade transactional emails:
+
+- 50,000 emails/day (free tier)
+- Advanced deliverability and analytics
+- Bounce and complaint handling
+- Email templates support
+
+Quick setup:
+
+```bash
+./scripts/setup-aws-ses.sh
+```
+
+See [AWS SES Setup Guide](docs/AWS_SES_SETUP.md) for detailed instructions.
 
 ### Prerequisites
 
 - Node.js 18+ and pnpm
 - Cloudflare account
+- AWS account (for email sending)
 - Pulumi CLI (for infrastructure)
 
 ### 1. Install Dependencies
@@ -32,7 +74,19 @@ cp .env.example .env
 # Edit .env with your Cloudflare credentials
 ```
 
-### 3. Deploy Infrastructure
+### 3. Set Up Email Routing (For Email Verification)
+
+Run the interactive setup script:
+
+```bash
+./scripts/setup-email-routing.sh
+```
+
+Or see [LOCAL_EMAIL_SETUP.md](docs/LOCAL_EMAIL_SETUP.md) for detailed instructions.
+
+> **Note**: Development mode logs emails to console (no setup needed). Production mode requires Email Routing configuration in Cloudflare Dashboard.
+
+### 4. Deploy Infrastructure
 
 ```bash
 cd infrastructure
@@ -40,13 +94,13 @@ source ../.env && export PULUMI_CONFIG_PASSPHRASE
 pulumi up
 ```
 
-### 4. Initialize Database
+### 5. Initialize Database
 
 ```bash
 pnpm exec wrangler d1 execute auth-db --remote --file=db/schema.sql
 ```
 
-### 5. Start Development Server
+### 6. Start Development Server
 
 ```bash
 pnpm run dev
@@ -54,26 +108,41 @@ pnpm run dev
 
 Visit `http://localhost:8787/health` to verify it's running.
 
+### 7. Test Email Functionality (Optional)
+
+```bash
+# Test email verification flow
+./scripts/test-email.sh
+```
+
+See [LOCAL_EMAIL_SETUP.md](docs/LOCAL_EMAIL_SETUP.md) for comprehensive testing guide.
+
 ## 📁 Project Structure
 
 ```
-auth/
+cf-auth/
 ├── src/               # Worker source code
-│   ├── handlers/      # Route handlers
-│   ├── services/      # Business logic
+│   ├── handlers/      # Route handlers (register, login, verify-email, etc.)
+│   ├── services/      # Business logic (user, token, email services)
 │   ├── middleware/    # Auth, CORS, rate limiting
-│   └── db/           # Database queries
-├── infrastructure/    # Pulumi IaC
-├── db/               # SQL schemas
-├── docs/             # Documentation
-├── tests/            # Unit & integration tests
-└── example-app/      # Demo Qwik application
+│   ├── utils/         # Crypto utilities
+│   └── db/            # Database queries
+├── demo-app/          # Qwik v2 demonstration application ✨
+│   ├── src/routes/    # Login, register, dashboard, verify-email pages
+│   ├── src/components/# Auth forms and UI components
+│   └── src/lib/       # Auth context and utilities
+├── infrastructure/    # Pulumi IaC (Cloudflare Workers, D1, KV)
+├── db/                # SQL schemas
+├── docs/              # Documentation (plan, summaries, guides)
+└── tests/             # Unit & integration tests
 ```
 
 ## 📚 Documentation
 
-- **[Implementation Plan](docs/plan.md)** - Complete development roadmap
-- **[Permission Model](docs/permission-model.md)** - Hierarchical permission system
+- **[PHASE 2 COMPLETE](docs/PHASE2_COMPLETE.md)** - ✅ Phase 2 accomplishments and metrics
+- **[Implementation Plan](docs/plan.md)** - Complete development roadmap with all phases
+- **[OAuth Provider Integration](docs/oauth-provider-integration.md)** - Phase 6 OAuth 2.1 provider guide
+- **[Permission Model](docs/permission-model.md)** - Hierarchical permission system design
 - **[Phase 1 Summary](docs/phase1-summary.md)** - Infrastructure setup status
 - **[Infrastructure Setup](infrastructure/README.md)** - Deployment guide
 

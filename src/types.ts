@@ -5,18 +5,23 @@
 // Environment bindings for Cloudflare Workers
 export interface Env {
   // D1 Database
-  AUTH_DB: D1Database;
-  
+  DB: D1Database;
+
   // KV Namespaces
-  AUTH_RATE_LIMIT: KVNamespace;
-  AUTH_TOKEN_BLACKLIST: KVNamespace;
-  AUTH_CACHE: KVNamespace;
-  
+  RATE_LIMITER: KVNamespace;
+  TOKEN_BLACKLIST: KVNamespace;
+  SESSION_CACHE: KVNamespace;
+
+  // AWS SES Credentials (for email sending)
+  AWS_ACCESS_KEY_ID?: string;
+  AWS_SECRET_ACCESS_KEY?: string;
+  AWS_REGION?: string;
+
   // Secrets
   JWT_SECRET: string;
   JWT_ACCESS_EXPIRATION: string;
   JWT_REFRESH_EXPIRATION: string;
-  
+
   // OAuth Secrets
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
@@ -24,15 +29,19 @@ export interface Env {
   TWITTER_CLIENT_SECRET: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
-  
-  // Email Configuration
-  EMAIL_FROM: string;
-  EMAIL_REPLY_TO: string;
-  
+
+  // Email Configuration (AWS SES)
+  EMAIL_FROM: string; // Verified sender email in AWS SES
+  EMAIL_REPLY_TO?: string;
+  FROM_NAME?: string;
+
   // App URLs
   APP_URL: string;
   API_URL: string;
-  
+
+  // Environment
+  ENVIRONMENT?: string;
+
   // Feature Flags
   ENABLE_CUSTOM_DOMAINS?: string;
   ENABLE_ANALYTICS?: string;
@@ -50,16 +59,16 @@ export interface User {
   created_at: number;
   updated_at: number;
   last_login_at?: number;
-  status: 'active' | 'suspended' | 'deleted';
+  status: "active" | "suspended" | "deleted";
   mfa_enabled: boolean;
   mfa_secret?: string;
   mfa_backup_codes?: string;
-  mfa_method?: 'totp' | 'sms' | 'webauthn';
+  mfa_method?: "totp" | "sms" | "webauthn";
 }
 
 // Permission bitmap
 export interface PermissionBitmap {
-  low: bigint;  // Permissions 0-63
+  low: bigint; // Permissions 0-63
   high: bigint; // Permissions 64-127
 }
 
@@ -72,11 +81,11 @@ export interface AccessTokenPayload {
   iat: number;
   exp: number;
   jti: string;
-  
+
   // User info
   display_name: string;
   avatar_url?: string;
-  
+
   // Permissions
   permissions: {
     organizations: Array<{
@@ -89,7 +98,7 @@ export interface AccessTokenPayload {
       is_owner: boolean;
     }>;
     resources?: Array<{
-      type: 'team' | 'repository' | 'project';
+      type: "team" | "repository" | "project";
       id: string;
       slug: string;
       perms: {
@@ -98,7 +107,7 @@ export interface AccessTokenPayload {
       };
     }>;
   };
-  
+
   grants?: string[];
 }
 
@@ -116,7 +125,7 @@ export interface LoginRequest {
 
 export interface AuthResponse {
   access_token: string;
-  token_type: 'Bearer';
+  token_type: "Bearer";
   expires_in: number;
   user: {
     id: string;

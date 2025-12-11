@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.ts, **/*.tsx"
+applyTo: "**/*.tsx"
 ---
 
 For this application, we're using qwik v2 (beta). The docs are located here:

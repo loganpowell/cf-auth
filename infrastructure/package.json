@@ -7,7 +7,8 @@
     "typescript": "^5.x"
   },
   "dependencies": {
-    "@pulumi/pulumi": "^3.x",
-    "@pulumi/cloudflare": "^5.x"
+    "@pulumi/aws": "^6.83.2",
+    "@pulumi/cloudflare": "^5.x",
+    "@pulumi/pulumi": "^3.x"
   }
 }

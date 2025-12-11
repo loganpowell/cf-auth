@@ -1,51 +1,32 @@
-/**
- * Pulumi Infrastructure as Code
- *
- * Provisions all infrastructure for the auth service:
- * - AWS OIDC Providers (GitHub Actions, Pulumi ESC)
- * - AWS IAM Roles and Policies
- * - AWS SES (Email service with automated DNS)
- * - Cloudflare D1 Database
- * - Cloudflare KV Namespaces (rate limiting, token blacklist, session cache)
- * - Automated DNS records via Route53
- * - Worker secrets via Pulumi ESC
- */
-
 import * as pulumi from "@pulumi/pulumi";
-import * as cloudflare from "@pulumi/cloudflare";
 import * as aws from "@pulumi/aws";
 
-// Import email infrastructure (AWS SES + DNS)
-import * as emailInfra from "./email";
-
-// Get Pulumi config
+// Get configuration
 const config = new pulumi.Config();
 const awsConfig = new pulumi.Config("aws");
-const cloudflareAccountId = config.require("cloudflareAccountId");
-const cloudflareZoneId = config.get("cloudflareZoneId"); // Optional: for custom domains
+const region = awsConfig.require("region");
 const githubRepository = config.require("githubRepository");
-
-// Get stack name for resource naming
-const stackName = pulumi.getStack();
 
 // Parse GitHub org and repo
 const [githubOrg, githubRepo] = githubRepository.split("/");
-const region = awsConfig.require("region");
 
 // =============================================================================
 // GitHub Actions OIDC Provider
 // =============================================================================
+// Allows GitHub Actions to authenticate to AWS without long-lived credentials
 const githubOidcProvider = new aws.iam.OpenIdConnectProvider(
   "github-oidc-provider",
   {
     url: "https://token.actions.githubusercontent.com",
     clientIdLists: ["sts.amazonaws.com"],
     thumbprintLists: [
+      // GitHub's OIDC thumbprints
       "6938fd4d98bab03faadb97b34396831e3780aea1",
       "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
     ],
   },
   {
+    // Allow importing existing provider
     import: process.env.IMPORT_GITHUB_OIDC,
   }
 );
@@ -53,6 +34,7 @@ const githubOidcProvider = new aws.iam.OpenIdConnectProvider(
 // =============================================================================
 // Pulumi ESC OIDC Provider
 // =============================================================================
+// Allows Pulumi ESC to authenticate to AWS for secret management
 const pulumiOidcProvider = new aws.iam.OpenIdConnectProvider(
   "pulumi-oidc-provider",
   {
@@ -61,6 +43,7 @@ const pulumiOidcProvider = new aws.iam.OpenIdConnectProvider(
     thumbprintLists: ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"],
   },
   {
+    // Allow importing existing provider
     import: process.env.IMPORT_PULUMI_OIDC,
   }
 );
@@ -68,10 +51,11 @@ const pulumiOidcProvider = new aws.iam.OpenIdConnectProvider(
 // =============================================================================
 // AWS Secrets Manager - SES Credentials
 // =============================================================================
+// Centralized storage for SES credentials (will be populated by email stack)
 const sesCredentialsSecret = new aws.secretsmanager.Secret(
   "ses-credentials",
   {
-    name: `cf-auth/ses-credentials-${stackName}`,
+    name: "cf-auth/ses-credentials",
     description: "AWS SES credentials for email sending",
   },
   {
@@ -82,10 +66,11 @@ const sesCredentialsSecret = new aws.secretsmanager.Secret(
 // =============================================================================
 // IAM Role for Pulumi ESC
 // =============================================================================
+// Allows Pulumi ESC to read secrets from AWS Secrets Manager
 const pulumiEscRole = new aws.iam.Role(
   "pulumi-esc-role",
   {
-    name: `pulumi-esc-cf-auth-${stackName}`,
+    name: "pulumi-esc-cf-auth",
     description: "Role for Pulumi ESC to access secrets",
     assumeRolePolicy: pulumi.interpolate`{
         "Version": "2012-10-17",
@@ -118,15 +103,6 @@ const pulumiEscRole = new aws.iam.Role(
                     "secretsmanager:DescribeSecret"
                 ],
                 "Resource": "${arn}"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ses:SendEmail",
-                    "ses:SendRawEmail",
-                    "ses:SendTemplatedEmail"
-                ],
-                "Resource": "*"
             }
         ]
     }`
@@ -142,8 +118,9 @@ const pulumiEscRole = new aws.iam.Role(
 // =============================================================================
 // IAM Role for GitHub Actions
 // =============================================================================
+// Allows GitHub Actions workflows to deploy infrastructure
 const githubActionsRole = new aws.iam.Role("github-actions-role", {
-  name: `github-actions-cf-auth-${stackName}`,
+  name: "github-actions-cf-auth",
   description: "Role for GitHub Actions to deploy infrastructure",
   assumeRolePolicy: pulumi.interpolate`{
     "Version": "2012-10-17",
@@ -174,11 +151,34 @@ const githubActionsRole = new aws.iam.Role("github-actions-role", {
           {
             Effect: "Allow",
             Action: [
+              // SES permissions
               "ses:*",
+              // SNS permissions for notifications
               "sns:*",
-              "iam:*",
-              "secretsmanager:*",
-              "route53:*",
+              // IAM permissions for managing SES user
+              "iam:CreateUser",
+              "iam:DeleteUser",
+              "iam:CreateAccessKey",
+              "iam:DeleteAccessKey",
+              "iam:ListAccessKeys",
+              "iam:AttachUserPolicy",
+              "iam:DetachUserPolicy",
+              "iam:PutUserPolicy",
+              "iam:DeleteUserPolicy",
+              "iam:GetUser",
+              "iam:GetUserPolicy",
+              "iam:CreatePolicy",
+              "iam:DeletePolicy",
+              "iam:GetPolicy",
+              "iam:ListPolicies",
+              // Secrets Manager permissions
+              "secretsmanager:CreateSecret",
+              "secretsmanager:UpdateSecret",
+              "secretsmanager:DeleteSecret",
+              "secretsmanager:PutSecretValue",
+              "secretsmanager:GetSecretValue",
+              "secretsmanager:DescribeSecret",
+              "secretsmanager:TagResource",
             ],
             Resource: "*",
           },
@@ -189,35 +189,8 @@ const githubActionsRole = new aws.iam.Role("github-actions-role", {
 });
 
 // =============================================================================
-// Cloudflare Resources
+// Outputs
 // =============================================================================
-
-// Create D1 Database with stack-based naming
-const authDatabase = new cloudflare.D1Database("auth-db", {
-  accountId: cloudflareAccountId,
-  name: `auth-db-${stackName}`,
-});
-
-// Create KV Namespaces with stack-based naming
-const rateLimiterKV = new cloudflare.WorkersKvNamespace("rate-limiter-kv", {
-  accountId: cloudflareAccountId,
-  title: `rate-limiter-kv-${stackName}`,
-});
-
-const tokenBlacklistKV = new cloudflare.WorkersKvNamespace(
-  "token-blacklist-kv",
-  {
-    accountId: cloudflareAccountId,
-    title: `token-blacklist-kv-${stackName}`,
-  }
-);
-
-const sessionCacheKV = new cloudflare.WorkersKvNamespace("session-cache-kv", {
-  accountId: cloudflareAccountId,
-  title: `session-cache-kv-${stackName}`,
-});
-
-// Export OIDC and IAM infrastructure
 export const githubOidcProviderArn = githubOidcProvider.arn;
 export const pulumiOidcProviderArn = pulumiOidcProvider.arn;
 export const sesCredentialsSecretArn = sesCredentialsSecret.arn;
@@ -228,67 +201,3 @@ export const githubActionsRoleArn = githubActionsRole.arn;
 export const githubActionsRoleName = githubActionsRole.name;
 export const awsRegion = region;
 export const repository = githubRepository;
-
-// Export Cloudflare resource IDs for use in wrangler.toml
-export const d1DatabaseId = authDatabase.id;
-export const rateLimiterKvId = rateLimiterKV.id;
-export const tokenBlacklistKvId = tokenBlacklistKV.id;
-export const sessionCacheKvId = sessionCacheKV.id;
-
-// Export email infrastructure outputs at top level for easier access
-export const domainIdentityVerificationToken =
-  emailInfra.outputs.domainIdentityVerificationToken;
-export const dkimTokens = emailInfra.outputs.dkimTokens;
-export const mailFromDomainName = emailInfra.outputs.mailFromDomainName;
-export const awsAccessKeyId = emailInfra.outputs.awsAccessKeyId;
-export const awsSecretAccessKey = emailInfra.outputs.awsSecretAccessKey;
-export const sesRegion = emailInfra.outputs.sesRegion;
-export const emailFrom = emailInfra.outputs.emailFrom;
-export const emailFromName = emailInfra.outputs.emailFromName;
-export const bounceTopicArn = emailInfra.outputs.bounceTopicArn;
-export const complaintTopicArn = emailInfra.outputs.complaintTopicArn;
-export const deliveryTopicArn = emailInfra.outputs.deliveryTopicArn;
-export const dnsRecordsCreated = emailInfra.outputs.dnsRecordsCreated;
-
-// Stack outputs
-export const outputs = {
-  // OIDC and IAM
-  oidc: {
-    githubProviderArn: githubOidcProvider.arn,
-    pulumiProviderArn: pulumiOidcProvider.arn,
-    githubActionsRoleArn: githubActionsRole.arn,
-    pulumiEscRoleArn: pulumiEscRole.arn,
-    sesCredentialsSecretArn: sesCredentialsSecret.arn,
-  },
-  // Cloudflare resources
-  d1Database: {
-    id: authDatabase.id,
-    name: authDatabase.name,
-  },
-  kvNamespaces: {
-    rateLimiter: {
-      id: rateLimiterKV.id,
-      title: rateLimiterKV.title,
-    },
-    tokenBlacklist: {
-      id: tokenBlacklistKV.id,
-      title: tokenBlacklistKV.title,
-    },
-    sessionCache: {
-      id: sessionCacheKV.id,
-      title: sessionCacheKV.title,
-    },
-  },
-  // Email infrastructure
-  email: {
-    ...emailInfra.outputs,
-    dnsAutomated: true,
-    setupInstructions:
-      "DNS records created automatically via Route53. SES credentials managed via Pulumi ESC.",
-  },
-};
-
-// Note:
-// - All DNS records are created automatically via Route53
-// - Worker secrets are managed via Pulumi ESC
-// - Single `pulumi up` deploys everything

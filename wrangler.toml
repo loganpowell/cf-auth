@@ -33,9 +33,14 @@ id = "df4847c009a94363bf7cfdad791268cf"
 # Environment variables (will be set via wrangler secret for production)
 [vars]
 ENVIRONMENT = "development"
+EMAIL_FROM = "noreply@hyperlocals.com"
+FROM_NAME = "Hyperlocals Auth"
+AWS_REGION = "us-east-1"
 
 # Secrets (use `wrangler secret put <KEY>` to set)
 # JWT_SECRET
+# AWS_ACCESS_KEY_ID (for SES)
+# AWS_SECRET_ACCESS_KEY (for SES)
 # OAUTH_GITHUB_CLIENT_ID
 # OAUTH_GITHUB_CLIENT_SECRET
 # OAUTH_GOOGLE_CLIENT_ID

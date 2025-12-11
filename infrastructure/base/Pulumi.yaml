@@ -1,0 +1,7 @@
+name: base
+runtime: nodejs
+description: Base infrastructure with OIDC providers and shared secrets
+
+config:
+  base:githubRepository:
+    description: GitHub repository in format owner/repo (e.g., loganpowell/cf-auth)

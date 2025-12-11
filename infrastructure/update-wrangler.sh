@@ -5,15 +5,15 @@
 
 set -e
 
-# Load .env for passphrase
-if [ -f "../.env" ]; then
-  source ../.env
+# Load .env for passphrase (in infrastructure directory)
+if [ -f ".env" ]; then
+  source .env
   export PULUMI_CONFIG_PASSPHRASE
 fi
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "   UPDATE WRANGLER.TOML WITH PRODUCTION RESOURCE IDS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # Make sure we're in the infrastructure directory
@@ -63,9 +63,9 @@ echo "  ✓ Updated D1 database ID"
 echo "  ✓ Updated KV namespace IDs"
 echo ""
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "   NEXT STEPS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "1. Initialize D1 database with schema:"
 echo "   cd .."

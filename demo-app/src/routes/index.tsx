@@ -1,175 +1,184 @@
 /**
- * Home Page - Backend Health Check Demo
+ * Home Page - Login
  *
- * This page demonstrates:
- * 1. Connection to the Cloudflare Workers backend
- * 2. Server-side API calls using Qwik's server$
- * 3. Reactive state management
- * 4. Error handling
+ * The main entry point for the application.
+ * Displays the login form for authentication using Qwik routeAction$.
  */
 
-import { component$, useSignal, useTask$, $ } from "@builder.io/qwik";
-import type { DocumentHead } from "@builder.io/qwik-city";
-import { server$ } from "@builder.io/qwik-city";
-import { API_BASE_URL, type HealthCheckResponse, ApiError } from "~/lib/api";
+import { component$ } from "@builder.io/qwik";
+import {
+  routeAction$,
+  Form,
+  z,
+  zod$,
+  useNavigate,
+  type DocumentHead,
+} from "@builder.io/qwik-city";
 
-/**
- * Server-side health check
- * This runs on the server to avoid CORS issues during development
- */
-const checkHealth$ = server$(async (): Promise<HealthCheckResponse> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/health`);
+// Login action - runs on server only
+export const useLogin = routeAction$(
+  async (data, { cookie, fail }) => {
+    try {
+      const response = await fetch("http://localhost:8787/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new ApiError(
-        `Health check failed: ${response.statusText}`,
-        response.status
-      );
+      if (!response.ok) {
+        const error = await response.json();
+        return fail(response.status, {
+          message: error.error || "Login failed",
+        });
+      }
+
+      const result = await response.json();
+
+      // Set the refresh token cookie
+      if (result.refreshToken) {
+        cookie.set("refreshToken", result.refreshToken, {
+          httpOnly: true,
+          secure: false, // Set to true in production with HTTPS
+          sameSite: "lax",
+          maxAge: 7 * 24 * 60 * 60, // 7 days
+          path: "/",
+        });
+      }
+
+      return {
+        success: true,
+        accessToken: result.accessToken,
+        user: result.user,
+      };
+    } catch (error) {
+      return fail(500, {
+        message: "Network error. Please try again.",
+      });
     }
-
-    const data = await response.json();
-    return data as HealthCheckResponse;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    throw new ApiError(
-      `Failed to connect to API: ${error instanceof Error ? error.message : "Unknown error"}`,
-      0
-    );
-  }
-});
+  },
+  zod$({
+    email: z.string().email("Please enter a valid email"),
+    password: z.string().min(1, "Password is required"),
+  })
+);
 
 export default component$(() => {
-  const health = useSignal<HealthCheckResponse | null>(null);
-  const error = useSignal<string | null>(null);
-  const loading = useSignal(false);
-
-  // Check health on mount
-  useTask$(async () => {
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const result = await checkHealth$();
-      health.value = result;
-    } catch (err) {
-      error.value =
-        err instanceof Error ? err.message : "Failed to connect to backend";
-    } finally {
-      loading.value = false;
-    }
-  });
-
-  const handleRefresh = $(async () => {
-    loading.value = true;
-    error.value = null;
-
-    try {
-      const result = await checkHealth$();
-      health.value = result;
-    } catch (err) {
-      error.value =
-        err instanceof Error ? err.message : "Failed to connect to backend";
-    } finally {
-      loading.value = false;
-    }
-  });
+  const login = useLogin();
+  const nav = useNavigate();
 
   return (
-    <div class="container">
-      <header class="header">
-        <h1>🔐 Auth Service Demo</h1>
-        <p class="subtitle">Testing Phase 1 Infrastructure</p>
-      </header>
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+      <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+          <h1 class="text-4xl font-bold text-gray-800 mb-2">🔐 Auth Service</h1>
+          <p class="text-gray-600">
+            Secure authentication on Cloudflare Workers
+          </p>
+        </div>
 
-      <main class="main">
-        <section class="status-card">
-          <h2>Backend Health Check</h2>
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+          <h2 class="text-2xl font-bold mb-6 text-gray-800">Sign In</h2>
 
-          {loading.value && (
-            <div class="loading">
-              <div class="spinner" />
-              <p>Checking backend status...</p>
+          {/* Error display */}
+          {login.value?.failed && (
+            <div class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p class="text-sm text-red-800">{login.value.message}</p>
             </div>
           )}
 
-          {error.value && (
-            <div class="error">
-              <h3>❌ Connection Failed</h3>
-              <p>{error.value}</p>
-              <p class="hint">
-                Make sure the backend is running: <code>pnpm run dev</code>
-              </p>
-            </div>
-          )}
-
-          {health.value && !loading.value && (
-            <div class="success">
-              <h3>✅ Backend Connected</h3>
-              <dl class="health-info">
-                <div class="info-row">
-                  <dt>Status:</dt>
-                  <dd class="status-ok">{health.value.status}</dd>
-                </div>
-                <div class="info-row">
-                  <dt>Version:</dt>
-                  <dd>{health.value.version}</dd>
-                </div>
-                <div class="info-row">
-                  <dt>Timestamp:</dt>
-                  <dd>{new Date(health.value.timestamp).toLocaleString()}</dd>
-                </div>
-              </dl>
-            </div>
-          )}
-
-          <button
-            class="refresh-btn"
-            onClick$={handleRefresh}
-            disabled={loading.value}
+          <Form
+            action={login}
+            class="space-y-4"
+            onSubmitCompleted$={async () => {
+              if (login.value?.success && login.value.accessToken) {
+                // Store token and navigate to dashboard
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("accessToken", login.value.accessToken);
+                  await nav("/dashboard");
+                }
+              }
+            }}
           >
-            {loading.value ? "Refreshing..." : "🔄 Refresh"}
-          </button>
-        </section>
+            <div>
+              <label
+                for="email"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="you@example.com"
+                value={login.formData?.get("email") || ""}
+              />
+              {login.value?.fieldErrors?.email && (
+                <p class="mt-1 text-xs text-red-600">
+                  {login.value.fieldErrors.email}
+                </p>
+              )}
+            </div>
 
-        <section class="info-card">
-          <h2>📋 Phase 1 Status</h2>
-          <ul class="checklist">
-            <li class="completed">✅ Cloudflare Workers runtime</li>
-            <li class="completed">✅ D1 Database provisioned</li>
-            <li class="completed">✅ KV Namespaces created (3)</li>
-            <li class="completed">✅ Health endpoint responding</li>
-            <li class="completed">✅ Qwik v2 demo app initialized</li>
-            <li class="pending">⏳ Authentication endpoints (Phase 2)</li>
-            <li class="pending">⏳ Email integration (Phase 3)</li>
-            <li class="pending">⏳ Permission system (Phase 4)</li>
-          </ul>
-        </section>
+            <div>
+              <label
+                for="password"
+                class="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="••••••••"
+              />
+              {login.value?.fieldErrors?.password && (
+                <p class="mt-1 text-xs text-red-600">
+                  {login.value.fieldErrors.password}
+                </p>
+              )}
+            </div>
 
-        <section class="next-steps">
-          <h2>🚀 Next Steps</h2>
-          <p>
-            Phase 1 backend infrastructure is complete. The demo app can now
-            communicate with the Cloudflare Workers backend.
+            <button
+              type="submit"
+              class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              disabled={login.isRunning}
+            >
+              {login.isRunning ? "Signing in..." : "Sign In"}
+            </button>
+          </Form>
+
+          <p class="mt-4 text-center text-sm text-gray-600">
+            Don't have an account?{" "}
+            <a
+              href="/register"
+              class="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign up
+            </a>
           </p>
-          <p>
-            Ready to proceed to Phase 2: Core Authentication implementation.
-          </p>
-        </section>
-      </main>
+        </div>
+      </div>
     </div>
   );
 });
 
 export const head: DocumentHead = {
-  title: "Auth Service Demo - Phase 1",
+  title: "Sign In - Auth Service",
   meta: [
     {
       name: "description",
-      content:
-        "Cloudflare Workers Authentication Service demonstration application",
+      content: "Sign in to your account",
     },
   ],
 };
