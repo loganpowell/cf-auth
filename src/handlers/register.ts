@@ -39,10 +39,13 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
   try {
     // Parse and validate request body
     const body = await c.req.json();
+    console.log("Registration request body:", body);
     const validatedData = registerSchema.parse(body);
+    console.log("Validation passed, registering user...");
 
     // Register user
     const result = await registerUser(validatedData, c.env);
+    console.log("User registered:", result.user.email);
 
     // Generate email verification token
     const verificationToken = generateSecureToken();
@@ -57,12 +60,14 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
       .bind(result.user.id, tokenHash, expiresAt, Math.floor(Date.now() / 1000))
       .run();
 
-    // Send verification email (async, don't wait)
-    sendVerificationEmail(result.user.email, verificationToken, c.env).catch(
-      (error) => {
-        console.error("Failed to send verification email:", error);
-      }
-    );
+    // Send verification email (wait for it to ensure it sends)
+    try {
+      await sendVerificationEmail(result.user.email, verificationToken, c.env);
+      console.log("✅ Verification email sent successfully");
+    } catch (error) {
+      console.error("❌ Failed to send verification email:", error);
+      // Don't fail registration if email fails
+    }
 
     // Set refresh token as httpOnly cookie
     c.header(
@@ -88,14 +93,15 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
       201
     );
   } catch (error) {
-    // Handle validation errors
+    // Handle Zod validation errors
     if (error instanceof z.ZodError) {
+      console.error("Validation error:", error.errors);
       return c.json(
         {
           error: "Validation failed",
-          details: error.errors.map((err) => ({
-            field: err.path.join("."),
-            message: err.message,
+          details: error.errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
           })),
         },
         400
@@ -104,6 +110,7 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
 
     // Handle business logic errors
     if (error instanceof Error) {
+      console.error("Business logic error:", error.message);
       // Check for specific error messages
       if (error.message.includes("already registered")) {
         return c.json(

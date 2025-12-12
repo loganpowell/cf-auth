@@ -4,12 +4,8 @@
  * Handles email verification via token from the verification email.
  */
 
-import { component$, useSignal, useTask$ } from "@builder.io/qwik";
-import {
-  routeLoader$,
-  useNavigate,
-  type DocumentHead,
-} from "@builder.io/qwik-city";
+import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
+import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
 
 // Loader to get token from query params
 export const useVerificationToken = routeLoader$(({ query }) => {
@@ -20,12 +16,27 @@ export const useVerificationToken = routeLoader$(({ query }) => {
 
 export default component$(() => {
   const tokenData = useVerificationToken();
-  const nav = useNavigate();
   const status = useSignal<"verifying" | "success" | "error">("verifying");
   const message = useSignal("");
+  const shouldRedirect = useSignal(false);
+
+  // Handle redirect when flag is set
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    track(() => shouldRedirect.value);
+
+    if (shouldRedirect.value) {
+      const timer = setTimeout(() => {
+        window.location.href = "/";
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  });
 
   // Verify email on mount
-  useTask$(async ({ track }) => {
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(async ({ track }) => {
     track(() => tokenData.value);
 
     const token = tokenData.value.token;
@@ -54,15 +65,13 @@ export default component$(() => {
         status.value = "success";
         message.value = data.message || "Email verified successfully!";
 
-        // Redirect to login after 3 seconds
-        setTimeout(async () => {
-          await nav("/");
-        }, 3000);
+        // Trigger redirect
+        shouldRedirect.value = true;
       } else {
         status.value = "error";
         message.value = data.error || "Verification failed";
       }
-    } catch (error) {
+    } catch {
       status.value = "error";
       message.value = "Network error. Please try again.";
     }
@@ -138,7 +147,9 @@ export default component$(() => {
               <p class="text-gray-600 mb-6">{message.value}</p>
               <div class="space-y-3">
                 <button
-                  onClick$={async () => await nav("/")}
+                  onClick$={() => {
+                    window.location.href = "/";
+                  }}
                   class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-all"
                 >
                   Go to Login

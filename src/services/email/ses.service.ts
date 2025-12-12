@@ -205,14 +205,21 @@ async function sendSESEmail(options: SESEmailOptions, env: Env): Promise<void> {
   );
 
   // Make the signed request
+  console.log(`🔐 Sending POST to: ${endpoint}`);
+  console.log(`📨 To: ${toAddresses.join(", ")}`);
+  console.log(`📋 Subject: ${subject}`);
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers: signedHeaders,
     body: payload,
   });
 
+  console.log(`📡 SES Response status: ${response.status}`);
+
   if (!response.ok) {
     const error = await response.text();
+    console.error(`❌ SES API error response: ${error}`);
     throw new Error(`SES API error: ${response.status} - ${error}`);
   }
 
@@ -232,6 +239,8 @@ export async function sendEmail(
   options: SESEmailOptions,
   env: Env
 ): Promise<void> {
+  console.log("🔍 sendEmail called with ENVIRONMENT:", env.ENVIRONMENT);
+
   // For development, just log the email
   if (env.ENVIRONMENT === "development") {
     console.log("📧 Email (Dev Mode - Not Sent via SES):");
@@ -244,6 +253,8 @@ export async function sendEmail(
     console.log("---");
     return;
   }
+
+  console.log("📧 Sending email via AWS SES...");
 
   // Validate AWS SES configuration
   if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
@@ -278,7 +289,7 @@ export async function sendVerificationEmail(
   env: Env
 ): Promise<void> {
   const verificationUrl = `${
-    env.APP_URL || "http://localhost:5174"
+    env.APP_URL || "http://localhost:5173"
   }/verify-email?token=${verificationToken}`;
 
   const html = `

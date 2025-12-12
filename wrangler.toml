@@ -30,12 +30,12 @@ id = "808f4bf8980145cb83bc5bf152e9b976"
 binding = "SESSION_CACHE"
 id = "df4847c009a94363bf7cfdad791268cf"
 
-# Environment variables (will be set via wrangler secret for production)
+# Environment variables (will be overridden by .dev.vars locally and secrets in production)
 [vars]
-ENVIRONMENT = "development"
-EMAIL_FROM = "noreply@hyperlocals.com"
-FROM_NAME = "Hyperlocals Auth"
-AWS_REGION = "us-east-1"
+ENVIRONMENT = "production"
+EMAIL_FROM = "auth@mail.rel.sh"
+FROM_NAME = "Authorizer"
+AWS_REGION = "us-east-2"
 
 # Secrets (use `wrangler secret put <KEY>` to set)
 # JWT_SECRET
