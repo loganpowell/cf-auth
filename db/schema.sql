@@ -98,20 +98,6 @@ CREATE TABLE IF NOT EXISTS oauth_providers (
 
 CREATE INDEX IF NOT EXISTS idx_oauth_provider_user ON oauth_providers(provider, provider_user_id);
 
--- Email Verification Tokens: For email verification
-CREATE TABLE IF NOT EXISTS email_verification_tokens (
-    user_id TEXT NOT NULL,
-    token_hash TEXT NOT NULL UNIQUE, -- SHA-256 hash of the verification token
-    expires_at INTEGER NOT NULL, -- Unix timestamp
-    created_at INTEGER NOT NULL,
-    used_at INTEGER, -- NULL if not used yet
-    PRIMARY KEY (user_id, token_hash),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_hash ON email_verification_tokens(token_hash);
-CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
-
 -- Email Verification Tokens
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
     id TEXT PRIMARY KEY, -- UUID v4

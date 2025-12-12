@@ -1531,8 +1531,11 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 - [x] Resend verification endpoint implemented
 - [x] Test email delivery end-to-end (development mode: console logging)
 - [x] ~~Create MJML email templates~~ - Using inline HTML templates (MJML deferred to later)
+- [x] Create shared types file (`src/types/shared.ts`) for frontend/backend/infrastructure data structures
+- [x] Export shared types for demo app consumption
+- [x] Password reset flow (request, reset, confirmation) - forgot-password and reset-password handlers
+- [x] Create password changed notification email
 - [ ] Build script to compile MJML to HTML + plain text
-- [ ] Password reset flow (request, reset, confirmation)
 - [ ] Configure email rate limiting
 - [ ] Test production email sending with AWS SES
 - [ ] Implement email bounce/complaint handling
@@ -1540,11 +1543,17 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 **Demo App:**
 
 - [x] Create email verification page (`/routes/verify-email/index.tsx`)
-- [ ] Add "resend verification" functionality to dashboard
-- [ ] Create password reset request page (`/routes/forgot-password/index.tsx`)
-- [ ] Create password reset form page (`/routes/reset-password/index.tsx`)
-- [ ] Add password change form to settings page
-- [ ] Display email verification status in user profile
+- [x] Create password reset request page (`/routes/forgot-password/index.tsx`)
+- [x] Create password reset form page (`/routes/reset-password/index.tsx`)
+- [x] Add "Forgot password?" link to login page
+- [x] Fix login redirect with client-side navigation (server-side redirect not working in Qwik v1)
+- [x] Create logged-in confirmation page (`/routes/logged-in/index.tsx`)
+- [x] Extract and set refresh token from backend Set-Cookie header
+- [x] Configure Vite watch with polling for better HMR
+- [x] Import shared types from backend (`@/types/shared`)
+- [x] Display email verification status in dashboard with badge and conditional styling
+- [x] Add "resend verification" functionality to dashboard with feedback messages
+- [x] Add password change form to settings page (`/routes/settings/index.tsx`)
 - [ ] Show toast notifications for email-related actions
 - [ ] Test complete email verification and password reset flows
 

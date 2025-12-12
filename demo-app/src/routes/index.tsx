@@ -5,21 +5,22 @@
  * Displays the login form for authentication using Qwik routeAction$.
  */
 
-import { component$ } from "@builder.io/qwik";
+import { component$, useVisibleTask$ } from "@builder.io/qwik";
 import {
   routeAction$,
   Form,
   z,
   zod$,
-  useNavigate,
   type DocumentHead,
 } from "@builder.io/qwik-city";
+import { getApiUrl } from "~/lib/config";
 
 // Login action - runs on server only
 export const useLogin = routeAction$(
   async (data, { cookie, fail }) => {
     try {
-      const response = await fetch("http://localhost:8787/v1/auth/login", {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -30,30 +31,52 @@ export const useLogin = routeAction$(
 
       if (!response.ok) {
         const error = await response.json();
+        console.error("Login failed:", error);
         return fail(response.status, {
           message: error.error || "Login failed",
         });
       }
 
       const result = await response.json();
+      console.log("Login successful for:", data.email);
 
-      // Set the refresh token cookie
-      if (result.refreshToken) {
-        cookie.set("refreshToken", result.refreshToken, {
-          httpOnly: true,
-          secure: false, // Set to true in production with HTTPS
+      // Extract refreshToken from Set-Cookie header if present
+      const setCookieHeader = response.headers.get("set-cookie");
+      if (setCookieHeader) {
+        const refreshTokenMatch = setCookieHeader.match(/refreshToken=([^;]+)/);
+        if (refreshTokenMatch) {
+          const refreshToken = refreshTokenMatch[1];
+          cookie.set("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: false, // false for localhost
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+            path: "/",
+          });
+        }
+      }
+
+      // Set access token cookie for client-side access
+      if (result.accessToken) {
+        cookie.set("accessToken", result.accessToken, {
+          httpOnly: false, // Allow client-side access
+          secure: false,
           sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60, // 7 days
+          maxAge: 15 * 60, // 15 minutes
           path: "/",
         });
       }
 
+      // Return success - we'll handle redirect on client
       return {
         success: true,
-        accessToken: result.accessToken,
-        user: result.user,
+        redirectTo: "/logged-in",
       };
     } catch (error) {
+      // If it's a redirect, re-throw it
+      if (error && typeof error === "object" && "status" in error) {
+        throw error;
+      }
       return fail(500, {
         message: "Network error. Please try again.",
       });
@@ -67,106 +90,100 @@ export const useLogin = routeAction$(
 
 export default component$(() => {
   const login = useLogin();
-  const nav = useNavigate();
+
+  // Handle client-side redirect after successful login
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const value = track(() => login.value);
+
+    // Type guard to check if value has our success properties
+    if (
+      value &&
+      typeof value === "object" &&
+      "success" in value &&
+      "redirectTo" in value
+    ) {
+      const successValue = value as { success: boolean; redirectTo: string };
+      if (successValue.success && successValue.redirectTo) {
+        console.log("Redirecting to:", successValue.redirectTo);
+        window.location.href = successValue.redirectTo;
+      }
+    }
+  });
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+    <div class="min-h-screen bg-white flex items-center justify-center px-6">
       <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-800 mb-2">🔐 Auth Service</h1>
-          <p class="text-gray-600">
-            Secure authentication on Cloudflare Workers
+        {/* Header */}
+        <div class="mb-16">
+          <h1 class="text-6xl font-light tracking-tightest mb-6">Sign In</h1>
+          <p class="text-sm opacity-60">
+            Enter your credentials to access your account
           </p>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-          <h2 class="text-2xl font-bold mb-6 text-gray-800">Sign In</h2>
+        {/* Error Message */}
+        {login.value?.failed && (
+          <div class="mb-8 pb-6 border-b border-black">
+            <p class="text-sm">{login.value.message}</p>
+          </div>
+        )}
 
-          {/* Error display */}
-          {login.value?.failed && (
-            <div class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
-              <p class="text-sm text-red-800">{login.value.message}</p>
-            </div>
-          )}
-
-          <Form
-            action={login}
-            class="space-y-4"
-            onSubmitCompleted$={async () => {
-              if (login.value?.success && login.value.accessToken) {
-                // Store token and navigate to dashboard
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("accessToken", login.value.accessToken);
-                  await nav("/dashboard");
-                }
-              }
-            }}
-          >
-            <div>
-              <label
-                for="email"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autocomplete="email"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@example.com"
-                value={login.formData?.get("email") || ""}
-              />
-              {login.value?.fieldErrors?.email && (
-                <p class="mt-1 text-xs text-red-600">
-                  {login.value.fieldErrors.email}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                for="password"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autocomplete="current-password"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
-              />
-              {login.value?.fieldErrors?.password && (
-                <p class="mt-1 text-xs text-red-600">
-                  {login.value.fieldErrors.password}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              disabled={login.isRunning}
+        {/* Login Form */}
+        <Form action={login} class="space-y-8">
+          <div>
+            <label
+              for="email"
+              class="block text-xs uppercase tracking-wider mb-3 opacity-60"
             >
-              {login.isRunning ? "Signing in..." : "Sign In"}
-            </button>
-          </Form>
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              class="input"
+              placeholder="your@email.com"
+            />
+            {login.value?.fieldErrors?.email && (
+              <p class="mt-2 text-sm opacity-60">
+                {login.value.fieldErrors.email}
+              </p>
+            )}
+          </div>
 
-          <p class="mt-4 text-center text-sm text-gray-600">
-            Don't have an account?{" "}
-            <a
-              href="/register"
-              class="text-blue-600 hover:text-blue-700 font-medium"
+          <div>
+            <label
+              for="password"
+              class="block text-xs uppercase tracking-wider mb-3 opacity-60"
             >
-              Sign up
-            </a>
-          </p>
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              class="input"
+              placeholder="••••••••"
+            />
+            {login.value?.fieldErrors?.password && (
+              <p class="mt-2 text-sm opacity-60">
+                {login.value.fieldErrors.password}
+              </p>
+            )}
+          </div>
+
+          <button type="submit" class="btn w-full" disabled={login.isRunning}>
+            {login.isRunning ? "Signing in..." : "Sign in"}
+          </button>
+        </Form>
+
+        {/* Footer Links */}
+        <div class="mt-12 pt-12 border-t border-black flex items-center justify-between text-sm">
+          <a href="/forgot-password">Forgot password?</a>
+          <a href="/register">Create account</a>
         </div>
       </div>
     </div>
@@ -174,7 +191,7 @@ export default component$(() => {
 });
 
 export const head: DocumentHead = {
-  title: "Sign In - Auth Service",
+  title: "Sign In",
   meta: [
     {
       name: "description",

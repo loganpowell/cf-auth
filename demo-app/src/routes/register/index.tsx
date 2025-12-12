@@ -10,15 +10,17 @@ import {
   Form,
   z,
   zod$,
-  useNavigate,
+  // useNavigate,
   type DocumentHead,
 } from "@builder.io/qwik-city";
+import { getApiUrl } from "~/lib/config";
 
 // Register action - runs on server only
 export const useRegister = routeAction$(
   async (data, { cookie, fail }) => {
     try {
-      const response = await fetch("http://localhost:8787/v1/auth/register", {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/v1/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -53,7 +55,7 @@ export const useRegister = routeAction$(
         accessToken: result.accessToken,
         user: result.user,
       };
-    } catch (_error) {
+    } catch {
       return fail(500, {
         message: "Network error. Please try again.",
       });
@@ -80,7 +82,7 @@ export const useRegister = routeAction$(
 
 export default component$(() => {
   const register = useRegister();
-  const nav = useNavigate();
+  // const nav = useNavigate();
   const password = useSignal("");
 
   // Password strength calculator
@@ -107,178 +109,149 @@ export default component$(() => {
   });
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+    <div class="min-h-screen bg-white flex items-center justify-center px-6 py-12">
       <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-800 mb-2">🔐 Auth Service</h1>
-          <p class="text-gray-600">Create your account to get started</p>
+        {/* Header */}
+        <div class="mb-16">
+          <h1 class="text-6xl font-light tracking-tightest mb-6">
+            Create Account
+          </h1>
+          <p class="text-sm opacity-60">Sign up to get started</p>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-          <h2 class="text-2xl font-bold mb-6 text-gray-800">Create Account</h2>
+        {/* Error display */}
+        {register.value?.failed && (
+          <div class="mb-8 pb-6 border-b border-black">
+            <p class="text-sm">{register.value.message}</p>
+          </div>
+        )}
 
-          {/* Error display */}
-          {register.value?.failed && (
-            <div class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
-              <p class="text-sm text-red-800">{register.value.message}</p>
-            </div>
-          )}
+        {/* Success message */}
+        {register.value?.success && (
+          <div class="mb-8 pb-6 border-b border-black">
+            <h3 class="text-sm font-medium mb-2">Check your email</h3>
+            <p class="text-sm opacity-60">
+              We've sent a verification email. Please click the link to verify
+              your account.
+            </p>
+          </div>
+        )}
 
-          {/* Success message */}
-          {register.value?.success && (
-            <div class="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
-              <div class="flex items-start">
-                <svg
-                  class="w-5 h-5 text-blue-600 mt-0.5 mr-3"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h3 class="text-sm font-medium text-blue-900">
-                    Check your email!
-                  </h3>
-                  <p class="mt-1 text-sm text-blue-800">
-                    We've sent a verification email to your address. Please
-                    click the link in the email to verify your account.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Form
-            action={register}
-            class="space-y-4"
-            onSubmitCompleted$={async () => {
-              if (register.value?.success && register.value.accessToken) {
-                // Store token but don't redirect yet - show email verification message
-                if (typeof window !== "undefined") {
-                  localStorage.setItem(
-                    "accessToken",
-                    register.value.accessToken
-                  );
-                }
+        <Form
+          action={register}
+          class="space-y-8"
+          onSubmitCompleted$={async () => {
+            if (register.value?.success && register.value.accessToken) {
+              if (typeof window !== "undefined") {
+                localStorage.setItem("accessToken", register.value.accessToken);
               }
-            }}
-          >
-            <div>
-              <label
-                for="displayName"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Display Name
-              </label>
-              <input
-                id="displayName"
-                name="displayName"
-                type="text"
-                autocomplete="name"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="John Doe"
-                value={register.formData?.get("displayName") || ""}
-              />
-              {register.value?.fieldErrors?.displayName && (
-                <p class="mt-1 text-xs text-red-600">
-                  {register.value.fieldErrors.displayName}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                for="email"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autocomplete="email"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@example.com"
-                value={register.formData?.get("email") || ""}
-              />
-              {register.value?.fieldErrors?.email && (
-                <p class="mt-1 text-xs text-red-600">
-                  {register.value.fieldErrors.email}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                for="password"
-                class="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autocomplete="new-password"
-                required
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="••••••••"
-                onInput$={(e) => {
-                  password.value = (e.target as HTMLInputElement).value;
-                }}
-              />
-              {register.value?.fieldErrors?.password && (
-                <p class="mt-1 text-xs text-red-600">
-                  {register.value.fieldErrors.password}
-                </p>
-              )}
-
-              {/* Password strength indicator */}
-              {password.value && (
-                <div class="mt-2">
-                  <div class="flex gap-1 mb-1">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div
-                        key={level}
-                        class={`h-1 flex-1 rounded-full transition-colors ${
-                          level <= passwordStrength.value
-                            ? strengthLabel.value.color
-                            : "bg-gray-200"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  {strengthLabel.value.text && (
-                    <p class="text-xs text-gray-600">
-                      Password strength: {strengthLabel.value.text}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              disabled={register.isRunning}
+            }
+          }}
+        >
+          <div>
+            <label
+              for="displayName"
+              class="block text-xs uppercase tracking-wider mb-3 opacity-60"
             >
-              {register.isRunning ? "Creating account..." : "Create Account"}
-            </button>
-          </Form>
+              Display Name
+            </label>
+            <input
+              id="displayName"
+              name="displayName"
+              type="text"
+              required
+              class="input"
+              placeholder="John Doe"
+            />
+            {register.value?.fieldErrors?.displayName && (
+              <p class="mt-2 text-sm opacity-60">
+                {register.value.fieldErrors.displayName}
+              </p>
+            )}
+          </div>
 
-          <p class="mt-4 text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <a href="/" class="text-blue-600 hover:text-blue-700 font-medium">
-              Sign in
-            </a>
-          </p>
+          <div>
+            <label
+              for="email"
+              class="block text-xs uppercase tracking-wider mb-3 opacity-60"
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              class="input"
+              placeholder="your@email.com"
+            />
+            {register.value?.fieldErrors?.email && (
+              <p class="mt-2 text-sm opacity-60">
+                {register.value.fieldErrors.email}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              for="password"
+              class="block text-xs uppercase tracking-wider mb-3 opacity-60"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              class="input"
+              placeholder="••••••••"
+              onInput$={(e) => {
+                password.value = (e.target as HTMLInputElement).value;
+              }}
+            />
+            {register.value?.fieldErrors?.password && (
+              <p class="mt-2 text-sm opacity-60">
+                {register.value.fieldErrors.password}
+              </p>
+            )}
+
+            {/* Password strength indicator */}
+            {password.value && (
+              <div class="mt-3">
+                <div class="flex gap-1 mb-2">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <div
+                      key={level}
+                      class={`h-0.5 flex-1 transition-colors ${
+                        level <= passwordStrength.value
+                          ? "bg-black"
+                          : "bg-black opacity-10"
+                      }`}
+                    />
+                  ))}
+                </div>
+                {strengthLabel.value.text && (
+                  <p class="text-xs opacity-60">
+                    Strength: {strengthLabel.value.text}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            class="btn w-full"
+            disabled={register.isRunning}
+          >
+            {register.isRunning ? "Creating account..." : "Create account"}
+          </button>
+        </Form>
+
+        <div class="mt-12 pt-12 border-t border-black flex items-center justify-center text-sm">
+          <span class="opacity-60 mr-2">Already have an account?</span>
+          <a href="/">Sign in</a>
         </div>
       </div>
     </div>

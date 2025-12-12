@@ -2,15 +2,45 @@
  * Dashboard Layout
  *
  * Provides the layout structure for authenticated pages.
- * Simple version without server$ - just handles logout navigation.
+ * Fetches user data and displays it in the header.
  */
 
 import { component$, Slot, $, useSignal } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
+import { routeLoader$, useNavigate } from "@builder.io/qwik-city";
+import type { User } from "@/types/shared";
+import { getApiUrl } from "~/lib/config";
+
+// Fetch user data for layout
+export const useLayoutUserData = routeLoader$(async ({ cookie }) => {
+  const accessToken = cookie.get("accessToken");
+
+  if (!accessToken) {
+    return { user: null };
+  }
+
+  try {
+    const apiUrl = getApiUrl();
+    const response = await fetch(`${apiUrl}/v1/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken.value}`,
+      },
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as User;
+      return { user: data };
+    }
+  } catch (error) {
+    console.error("Failed to fetch user data in layout:", error);
+  }
+
+  return { user: null };
+});
 
 export default component$(() => {
   const nav = useNavigate();
   const showUserMenu = useSignal(false);
+  const layoutData = useLayoutUserData();
 
   const handleLogout = $(async () => {
     // Clear local storage and navigate to login
@@ -18,7 +48,8 @@ export default component$(() => {
       const token = localStorage.getItem("accessToken");
       if (token) {
         // Call logout endpoint (fire and forget)
-        fetch("http://localhost:8787/v1/auth/logout", {
+        const apiUrl = getApiUrl();
+        fetch(`${apiUrl}/v1/auth/logout`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -32,21 +63,19 @@ export default component$(() => {
     await nav("/");
   });
 
+  const user = layoutData.value.user;
+  const userInitial = user?.displayName?.charAt(0).toUpperCase() || "U";
+
   return (
-    <div class="min-h-screen bg-gray-50">
+    <div class="min-h-screen bg-white">
       {/* Header */}
-      <header class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between items-center py-4">
+      <header class="border-b border-black">
+        <div class="container-custom py-8">
+          <div class="flex items-center justify-between">
             {/* Logo */}
-            <div class="flex items-center">
-              <a href="/dashboard" class="flex items-center">
-                <span class="text-2xl">🔐</span>
-                <span class="ml-2 text-xl font-bold text-gray-900">
-                  Auth Service
-                </span>
-              </a>
-            </div>
+            <a href="/dashboard" class="text-2xl font-light tracking-tightest">
+              Auth
+            </a>
 
             {/* User Menu */}
             <div class="relative">
@@ -54,51 +83,35 @@ export default component$(() => {
                 onClick$={() => {
                   showUserMenu.value = !showUserMenu.value;
                 }}
-                class="flex items-center space-x-3 bg-gray-100 hover:bg-gray-200 rounded-lg px-4 py-2 transition-colors"
+                class="flex items-center space-x-4 px-4 py-2 border border-black hover:bg-black hover:text-white transition-all duration-150"
               >
-                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-medium">
-                  U
+                <div class="flex items-center justify-center w-8 h-8 border border-black text-xs font-medium">
+                  {userInitial}
                 </div>
                 <div class="text-left">
-                  <div class="text-sm font-medium text-gray-900">User</div>
-                  <div class="text-xs text-gray-500">Authenticated</div>
+                  <div class="text-sm font-medium">
+                    {user?.displayName || "User"}
+                  </div>
+                  <div class="text-xs opacity-60">
+                    {user?.email || "Authenticated"}
+                  </div>
                 </div>
-                <svg
-                  class="w-4 h-4 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
               </button>
 
               {/* Dropdown Menu */}
               {showUserMenu.value && (
-                <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                <div class="absolute right-0 mt-2 w-48 bg-white border border-black z-10">
+                  <a
+                    href="/settings"
+                    class="block px-4 py-3 text-sm hover:bg-black hover:text-white transition-all duration-150"
+                  >
+                    Settings
+                  </a>
                   <button
                     onClick$={handleLogout}
-                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                    class="w-full text-left px-4 py-3 text-sm hover:bg-black hover:text-white transition-all duration-150 border-t border-black"
                   >
-                    <svg
-                      class="w-4 h-4 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    Logout
+                    Sign out
                   </button>
                 </div>
               )}
@@ -108,7 +121,7 @@ export default component$(() => {
       </header>
 
       {/* Main Content */}
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main class="container-custom section">
         <Slot />
       </main>
     </div>

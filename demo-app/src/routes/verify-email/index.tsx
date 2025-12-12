@@ -6,6 +6,7 @@
 
 import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
 import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { getApiUrl } from "~/lib/config";
 
 // Loader to get token from query params
 export const useVerificationToken = routeLoader$(({ query }) => {
@@ -48,16 +49,14 @@ export default component$(() => {
     }
 
     try {
-      const response = await fetch(
-        "http://localhost:8787/v1/auth/verify-email",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        }
-      );
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/v1/auth/verify-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
 
       const data = await response.json();
 

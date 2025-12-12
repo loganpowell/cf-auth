@@ -2,159 +2,230 @@
  * Dashboard Index Page
  *
  * Main dashboard page showing user information and account status.
- * Uses routeLoader$ to check authentication.
+ * Uses routeLoader$ to check authentication and fetch user data.
  */
 
 import { component$ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  routeLoader$,
+  routeAction$,
+  type DocumentHead,
+} from "@builder.io/qwik-city";
+import type { User, ResendVerificationRequest } from "@/types/shared";
+import { getApiUrl } from "~/lib/config";
 
-// Loader runs on server before rendering - checks if user is authenticated
+// Loader runs on server before rendering - fetches user data
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
   // Check if refresh token exists (means user is authenticated)
   const refreshToken = cookie.get("refreshToken");
+  const accessToken = cookie.get("accessToken");
 
   if (!refreshToken) {
     // No auth, redirect to login
     throw redirect(302, "/");
   }
 
+  // Fetch user data from backend
+  try {
+    const apiUrl = getApiUrl();
+    const response = await fetch(`${apiUrl}/v1/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken?.value}`,
+      },
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as User;
+      return {
+        hasAuth: true,
+        user: data,
+      };
+    }
+  } catch (error) {
+    console.error("Failed to fetch user data:", error);
+  }
+
+  // Fallback if fetch fails
   return {
     hasAuth: true,
+    user: null,
   };
+});
+
+// Resend verification email action
+export const useResendVerification = routeAction$(async (data, { fail }) => {
+  try {
+    const apiUrl = getApiUrl();
+    const requestBody: ResendVerificationRequest = {
+      email: data.email as string,
+    };
+
+    const response = await fetch(`${apiUrl}/v1/auth/resend-verification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return fail(response.status, {
+        message: error.error || "Failed to resend verification email",
+      });
+    }
+
+    return {
+      success: true,
+      message: "Verification email sent! Please check your inbox.",
+    };
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    return fail(500, { message: "Network error. Please try again." });
+  }
 });
 
 export default component$(() => {
   // The loader ensures we're authenticated before rendering
-  // The layout.tsx handles displaying user info
+  const userData = useUserData();
+  const resendVerification = useResendVerification();
 
   return (
-    <div>
+    <div class="max-w-4xl">
       {/* Welcome Section */}
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-800">Welcome back!</h1>
-        <p class="mt-2 text-gray-600">
-          You're successfully authenticated with the Auth Service.
-        </p>
+      <div class="mb-16">
+        <h1 class="text-5xl font-light tracking-tightest mb-4">
+          Welcome back
+          {userData.value.user ? `, ${userData.value.user.displayName}` : ""}
+        </h1>
+        <p class="text-sm opacity-60">You're successfully authenticated</p>
       </div>
 
-      {/* Success Message */}
-      <div class="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
-        <div class="flex items-start">
-          <div class="flex-shrink-0">
-            <svg
-              class="h-6 w-6 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+      {/* Resend Verification Success Message */}
+      {resendVerification.value?.success && (
+        <div class="card mb-8 p-6">
+          <p class="text-sm">{resendVerification.value.message}</p>
+        </div>
+      )}
+
+      {/* Resend Verification Error Message */}
+      {resendVerification.value?.failed && (
+        <div class="border border-black p-6 mb-8">
+          <p class="text-sm">{resendVerification.value.message}</p>
+        </div>
+      )}
+
+      {/* Email Verification Status */}
+      {userData.value.user && (
+        <div class="border border-black p-6 mb-12">
+          <div class="mb-4">
+            <span
+              class={
+                userData.value.user.emailVerified
+                  ? "badge badge-success"
+                  : "badge badge-warning"
+              }
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+              {userData.value.user.emailVerified ? "VERIFIED" : "NOT VERIFIED"}
+            </span>
           </div>
-          <div class="ml-3 flex-1">
-            <h3 class="text-lg font-medium text-green-900">
-              🎉 Phase 2 Demo App Complete!
-            </h3>
-            <div class="mt-2 text-sm text-green-800">
+          <div class="text-sm">
+            {userData.value.user.emailVerified ? (
               <p>
-                You've successfully completed the authentication flow. The
-                system includes:
+                Your email <strong>{userData.value.user.email}</strong> is
+                verified.
               </p>
-              <ul class="list-disc list-inside mt-2 space-y-1">
-                <li>JWT-based authentication with access and refresh tokens</li>
-                <li>Secure password hashing with PBKDF2</li>
-                <li>Protected routes with automatic redirects</li>
-                <li>Form validation using Zod</li>
-                <li>Qwik v2 routeAction$ for server-side form handling</li>
-                <li>HttpOnly cookies for refresh token storage</li>
-              </ul>
-            </div>
+            ) : (
+              <div>
+                <p class="mb-4">
+                  Please verify <strong>{userData.value.user.email}</strong> to
+                  access all features.
+                </p>
+                <form
+                  preventdefault:submit
+                  onSubmit$={async () => {
+                    if (userData.value.user?.email) {
+                      await resendVerification.submit({
+                        email: userData.value.user.email,
+                      });
+                    }
+                  }}
+                >
+                  <button
+                    type="submit"
+                    class="btn"
+                    disabled={resendVerification.isRunning}
+                  >
+                    {resendVerification.isRunning
+                      ? "Sending..."
+                      : "Resend Verification Email"}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Authentication Complete */}
+      <div class="card p-8 mb-12">
+        <h2 class="text-2xl font-light tracking-tightest mb-4">
+          Authentication Complete
+        </h2>
+        <p class="text-sm opacity-60 mb-6">
+          The system includes the following features:
+        </p>
+        <ul class="space-y-2 text-sm">
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>JWT-based authentication with access and refresh tokens</span>
+          </li>
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>Secure password hashing with PBKDF2</span>
+          </li>
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>Protected routes with automatic redirects</span>
+          </li>
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>Form validation using Zod</span>
+          </li>
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>Qwik v2 routeAction$ for server-side form handling</span>
+          </li>
+          <li class="flex items-start">
+            <span class="opacity-60 mr-2">—</span>
+            <span>HttpOnly cookies for refresh token storage</span>
+          </li>
+        </ul>
       </div>
 
       {/* Feature Cards */}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="bg-white rounded-lg shadow-md p-6">
-          <div class="flex items-center mb-4">
-            <div class="bg-blue-100 rounded-lg p-3">
-              <svg
-                class="h-6 w-6 text-blue-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
-            </div>
-            <h3 class="ml-3 text-lg font-semibold text-gray-800">
-              Secure Auth
-            </h3>
-          </div>
-          <p class="text-sm text-gray-600">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div class="card p-6">
+          <h3 class="text-lg font-light tracking-tight mb-2">Secure Auth</h3>
+          <p class="text-sm opacity-60">
             Industry-standard JWT tokens with refresh token rotation for maximum
             security.
           </p>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-          <div class="flex items-center mb-4">
-            <div class="bg-green-100 rounded-lg p-3">
-              <svg
-                class="h-6 w-6 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-            </div>
-            <h3 class="ml-3 text-lg font-semibold text-gray-800">
-              Edge Performance
-            </h3>
-          </div>
-          <p class="text-sm text-gray-600">
+        <div class="card p-6">
+          <h3 class="text-lg font-light tracking-tight mb-2">
+            Edge Performance
+          </h3>
+          <p class="text-sm opacity-60">
             Running on Cloudflare Workers for ultra-low latency authentication
             worldwide.
           </p>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-          <div class="flex items-center mb-4">
-            <div class="bg-purple-100 rounded-lg p-3">
-              <svg
-                class="h-6 w-6 text-purple-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                />
-              </svg>
-            </div>
-            <h3 class="ml-3 text-lg font-semibold text-gray-800">
-              Type Safety
-            </h3>
-          </div>
-          <p class="text-sm text-gray-600">
+        <div class="card p-6">
+          <h3 class="text-lg font-light tracking-tight mb-2">Type Safety</h3>
+          <p class="text-sm opacity-60">
             Full TypeScript coverage with Zod validation for runtime type
             safety.
           </p>
@@ -162,55 +233,25 @@ export default component$(() => {
       </div>
 
       {/* Next Steps */}
-      <div class="mt-8 bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Next Steps</h2>
-        <ul class="space-y-3">
+      <div class="card p-8">
+        <h2 class="text-2xl font-light tracking-tightest mb-6">Next Steps</h2>
+        <ul class="space-y-4 text-sm">
           <li class="flex items-start">
-            <svg
-              class="h-5 w-5 text-blue-600 mt-0.5 mr-3"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span class="text-sm text-gray-700">
+            <span class="opacity-60 mr-3">—</span>
+            <span>
               Test the logout functionality by clicking the logout button in the
               header
             </span>
           </li>
           <li class="flex items-start">
-            <svg
-              class="h-5 w-5 text-blue-600 mt-0.5 mr-3"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span class="text-sm text-gray-700">
+            <span class="opacity-60 mr-3">—</span>
+            <span>
               Try creating another account to test the registration flow
             </span>
           </li>
           <li class="flex items-start">
-            <svg
-              class="h-5 w-5 text-blue-600 mt-0.5 mr-3"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span class="text-sm text-gray-700">
+            <span class="opacity-60 mr-3">—</span>
+            <span>
               Check the browser's DevTools to see the httpOnly refresh token
               cookie
             </span>

@@ -363,7 +363,7 @@ export async function sendPasswordResetEmail(
   env: Env
 ): Promise<void> {
   const resetUrl = `${
-    env.APP_URL || "http://localhost:5174"
+    env.APP_URL || "http://localhost:5173"
   }/reset-password?token=${resetToken}`;
 
   const html = `
@@ -420,6 +420,108 @@ This link will expire in 1 hour. If you didn't request a password reset, you can
     {
       to: email,
       subject: "Reset your password",
+      html,
+      text,
+    },
+    env
+  );
+}
+
+/**
+ * Send password changed notification email
+ */
+export async function sendPasswordChangedEmail(
+  email: string,
+  env: Env
+): Promise<void> {
+  const now = new Date();
+  const timestamp = now.toLocaleString("en-US", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+
+  const supportUrl = `${env.APP_URL || "http://localhost:5173"}/support`;
+  const loginUrl = `${env.APP_URL || "http://localhost:5173"}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Password Changed Successfully</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">✓ Password Changed</h1>
+      </div>
+      
+      <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px;">
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Your password was successfully changed on <strong>${timestamp}</strong>.
+        </p>
+        
+        <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="font-size: 14px; color: #065f46; margin: 0;">
+            <strong>✓ Security Confirmation</strong><br>
+            Your account is now secured with your new password. You can use it to log in across all devices.
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${loginUrl}" 
+             style="background: #667eea; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 16px;">
+            Go to Login
+          </a>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        
+        <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="font-size: 14px; color: #991b1b; margin: 0;">
+            <strong>⚠️ Didn't make this change?</strong><br>
+            If you did not change your password, your account may be compromised. Please contact our support team immediately.
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${supportUrl}" 
+             style="background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 14px;">
+            Contact Support
+          </a>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        
+        <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+          This is an automated security notification. For your protection, all active sessions on other devices have been logged out.
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Password Changed Successfully
+
+Your password was successfully changed on ${timestamp}.
+
+Security Confirmation:
+Your account is now secured with your new password. You can use it to log in across all devices.
+
+⚠️ DIDN'T MAKE THIS CHANGE?
+
+If you did not change your password, your account may be compromised. Please contact our support team immediately:
+${supportUrl}
+
+---
+This is an automated security notification. For your protection, all active sessions on other devices have been logged out.
+  `.trim();
+
+  await sendEmail(
+    {
+      to: email,
+      subject: "Your password has been changed",
       html,
       text,
     },

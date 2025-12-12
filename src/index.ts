@@ -17,6 +17,8 @@ import { handleLogout } from "./handlers/logout";
 import { handleGetMe } from "./handlers/me";
 import verifyEmailHandler from "./handlers/verify-email";
 import resendVerificationHandler from "./handlers/resend-verification";
+import { handleForgotPassword } from "./handlers/forgot-password";
+import { handleResetPassword } from "./handlers/reset-password";
 
 // Create Hono app with typed environment
 const app = new Hono<{ Bindings: Env }>();
@@ -40,7 +42,7 @@ app.get("/health", (c) => {
   return c.json({
     status: "ok",
     timestamp: Date.now(),
-    version: "0.2.0", // Phase 2
+    version: "0.3.0", // Phase 3 - Password Reset
   });
 });
 
@@ -57,6 +59,10 @@ v1.get("/auth/me", handleGetMe);
 // Email verification routes
 v1.route("/auth/verify-email", verifyEmailHandler);
 v1.route("/auth/resend-verification", resendVerificationHandler);
+
+// Password reset routes (Phase 3)
+v1.post("/auth/forgot-password", handleForgotPassword);
+v1.post("/auth/reset-password", handleResetPassword);
 
 // Mount v1 routes
 app.route("/v1", v1);
