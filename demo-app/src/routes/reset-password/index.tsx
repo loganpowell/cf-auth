@@ -4,15 +4,21 @@
  * Allows users to set a new password using a reset token.
  */
 
-import { component$, useSignal } from "@builder.io/qwik";
+import {
+  component$,
+  useSignal,
+  useContext,
+  useVisibleTask$,
+} from "@qwik.dev/core";
 import {
   routeAction$,
   routeLoader$,
   Form,
   type DocumentHead,
-} from "@builder.io/qwik-city";
+} from "@qwik.dev/router";
 import { z } from "zod";
-import { getApiUrl } from "~/lib/config";
+import { serverApi } from "~/lib/server-api";
+import { ToastContextId } from "~/lib/toast-context";
 
 // Loader to get token from query params
 export const useResetToken = routeLoader$(({ query }) => {
@@ -45,8 +51,8 @@ export const useResetPasswordAction = routeAction$(async (data, { fail }) => {
 
   const result = schema.safeParse(data);
   if (!result.success) {
-    const errors = result.error.errors.reduce(
-      (acc, err) => {
+    const errors = result.error.issues.reduce(
+      (acc: Record<string, string>, err) => {
         const field = err.path[0] as string;
         acc[field] = err.message;
         return acc;
@@ -60,34 +66,20 @@ export const useResetPasswordAction = routeAction$(async (data, { fail }) => {
   }
 
   try {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/reset-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        token: result.data.token,
-        newPassword: result.data.newPassword,
-      }),
-    });
-
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      return fail(response.status, {
-        message: responseData.message || "Failed to reset password",
-      });
-    }
+    const response = await serverApi.resetPassword(
+      result.data.token,
+      result.data.newPassword
+    );
 
     return {
       success: true,
-      message: responseData.message,
+      message: response.message,
     };
   } catch (error) {
     console.error("Reset password error:", error);
-    return fail(500, {
-      message: "Network error. Please try again.",
+    return fail(400, {
+      message:
+        error instanceof Error ? error.message : "Failed to reset password",
     });
   }
 });
@@ -98,6 +90,19 @@ export default component$(() => {
   const isSubmitting = useSignal(false);
   const showPassword = useSignal(false);
   const showConfirmPassword = useSignal(false);
+  const toastCtx = useContext(ToastContextId);
+
+  // Show toast notification when password is reset
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const value = track(() => action.value);
+
+    if (value?.success) {
+      toastCtx.showToast(value.message, "success");
+    } else if (value?.failed && value?.message) {
+      toastCtx.showToast(value.message, "error");
+    }
+  });
 
   // If no token in URL, show error
   if (!tokenData.value.token) {
@@ -148,12 +153,6 @@ export default component$(() => {
         ) : (
           <Form action={action} class="space-y-8">
             <input type="hidden" name="token" value={tokenData.value.token} />
-
-            {action.value?.message && (
-              <div class="border border-black p-4 mb-8">
-                <p class="text-sm">{action.value.message}</p>
-              </div>
-            )}
 
             <div>
               <label

@@ -5,83 +5,126 @@
  * Uses routeLoader$ to check authentication and fetch user data.
  */
 
-import { component$ } from "@builder.io/qwik";
+import { component$, useContext, useVisibleTask$ } from "@qwik.dev/core";
 import {
   routeLoader$,
   routeAction$,
+  Form,
   type DocumentHead,
-} from "@builder.io/qwik-city";
-import type { User, ResendVerificationRequest } from "@/types/shared";
-import { getApiUrl } from "~/lib/config";
+} from "@qwik.dev/router";
+import { ToastContextId } from "~/lib/toast-context";
+import { serverApi } from "~/lib/server-api";
 
-// Loader runs on server before rendering - fetches user data
+// Loader runs on server before rendering - fetches user data with type-safe API
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
+  console.log("🔍 Dashboard loader started");
+
   // Check if refresh token exists (means user is authenticated)
   const refreshToken = cookie.get("refreshToken");
-  const accessToken = cookie.get("accessToken");
+  let accessToken = cookie.get("accessToken");
+
+  console.log("🔑 Tokens:", {
+    hasRefreshToken: !!refreshToken,
+    hasAccessToken: !!accessToken,
+    accessTokenValue: accessToken?.value ? "exists" : "missing",
+  });
 
   if (!refreshToken) {
+    console.log("❌ No refresh token - redirecting to login");
     // No auth, redirect to login
     throw redirect(302, "/");
   }
 
-  // Fetch user data from backend
-  try {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken?.value}`,
-      },
-    });
+  // If access token is missing but refresh token exists, try to refresh
+  if (!accessToken?.value && refreshToken) {
+    console.log("🔄 Access token missing - attempting refresh...");
+    try {
+      const refreshData = await serverApi.refresh();
+      console.log("✅ Token refreshed successfully");
 
-    if (response.ok) {
-      const data = (await response.json()) as User;
-      return {
-        hasAuth: true,
-        user: data,
-      };
+      // Set the new access token in cookie
+      cookie.set("accessToken", refreshData.accessToken, {
+        httpOnly: false, // Accessible to JavaScript
+        secure: false, // true in production
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 15, // 15 minutes
+      });
+
+      // Update our local variable
+      accessToken = cookie.get("accessToken");
+      console.log("🔑 New access token set");
+    } catch (error) {
+      console.error("❌ Token refresh failed:", error);
+      // Refresh failed, redirect to login
+      throw redirect(302, "/");
     }
-  } catch (error) {
-    console.error("Failed to fetch user data:", error);
   }
 
-  // Fallback if fetch fails
-  return {
-    hasAuth: true,
-    user: null,
-  };
-});
-
-// Resend verification email action
-export const useResendVerification = routeAction$(async (data, { fail }) => {
+  // Fetch user data from backend using typed API client
   try {
-    const apiUrl = getApiUrl();
-    const requestBody: ResendVerificationRequest = {
-      email: data.email as string,
-    };
-
-    const response = await fetch(`${apiUrl}/v1/auth/resend-verification`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
+    console.log("📡 Calling serverApi.getMe...");
+    const data = await serverApi.getMe(accessToken?.value || "");
+    console.log("✅ Data received:", {
+      hasUser: !!data.user,
+      userEmail: data.user?.email,
+      userVerified: data.user?.emailVerified,
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      return fail(response.status, {
-        message: error.error || "Failed to resend verification email",
-      });
-    }
+    // Type-safe: data has type { user: User }
+    // No more user.user confusion - TypeScript knows the shape!
+    return {
+      hasAuth: true,
+      user: data.user, // TypeScript autocomplete works here!
+    };
+  } catch (error) {
+    console.error("❌ Dashboard loader error:", error);
+    console.error("❌ Error details:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error,
+      raw: error,
+    });
+
+    // Fallback if fetch fails
+    return {
+      hasAuth: true,
+      user: null,
+    };
+  }
+});
+
+// Resend verification email action with type-safe API
+export const useResendVerification = routeAction$(async (data, { fail }) => {
+  console.log("🔍 Resend verification action started");
+
+  try {
+    const email = data.email as string;
+    console.log("📧 Email:", email);
+
+    // Type-safe API call - TypeScript knows the request/response shape
+    console.log("📡 Calling serverApi.resendVerification...");
+    const response = await serverApi.resendVerification(email);
+    console.log("✅ Response received:", response);
 
     return {
       success: true,
-      message: "Verification email sent! Please check your inbox.",
+      message: response.message, // TypeScript knows this exists!
     };
   } catch (error) {
-    console.error("Resend verification error:", error);
-    return fail(500, { message: "Network error. Please try again." });
+    console.error("❌ Resend verification error:", error);
+    console.error("❌ Error details:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error,
+      raw: error,
+    });
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Network error. Please try again.";
+    return fail(500, { message: errorMessage });
   }
 });
 
@@ -89,6 +132,23 @@ export default component$(() => {
   // The loader ensures we're authenticated before rendering
   const userData = useUserData();
   const resendVerification = useResendVerification();
+  const toastCtx = useContext(ToastContextId);
+
+  // Show toast notification when verification email is sent
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const value = track(() => resendVerification.value);
+
+    console.log("🔍 Resend verification value changed:", value);
+
+    if (value?.success) {
+      console.log("✅ Success - showing toast:", value.message);
+      toastCtx.showToast(value.message, "success");
+    } else if (value?.failed) {
+      console.log("❌ Failed - showing error toast:", value.message);
+      toastCtx.showToast(value.message, "error");
+    }
+  });
 
   return (
     <div class="max-w-4xl">
@@ -100,20 +160,6 @@ export default component$(() => {
         </h1>
         <p class="text-sm opacity-60">You're successfully authenticated</p>
       </div>
-
-      {/* Resend Verification Success Message */}
-      {resendVerification.value?.success && (
-        <div class="card mb-8 p-6">
-          <p class="text-sm">{resendVerification.value.message}</p>
-        </div>
-      )}
-
-      {/* Resend Verification Error Message */}
-      {resendVerification.value?.failed && (
-        <div class="border border-black p-6 mb-8">
-          <p class="text-sm">{resendVerification.value.message}</p>
-        </div>
-      )}
 
       {/* Email Verification Status */}
       {userData.value.user && (
@@ -141,16 +187,12 @@ export default component$(() => {
                   Please verify <strong>{userData.value.user.email}</strong> to
                   access all features.
                 </p>
-                <form
-                  preventdefault:submit
-                  onSubmit$={async () => {
-                    if (userData.value.user?.email) {
-                      await resendVerification.submit({
-                        email: userData.value.user.email,
-                      });
-                    }
-                  }}
-                >
+                <Form action={resendVerification}>
+                  <input
+                    type="hidden"
+                    name="email"
+                    value={userData.value.user.email}
+                  />
                   <button
                     type="submit"
                     class="btn"
@@ -160,7 +202,7 @@ export default component$(() => {
                       ? "Sending..."
                       : "Resend Verification Email"}
                   </button>
-                </form>
+                </Form>
               </div>
             )}
           </div>

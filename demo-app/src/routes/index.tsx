@@ -5,56 +5,26 @@
  * Displays the login form for authentication using Qwik routeAction$.
  */
 
-import { component$, useVisibleTask$ } from "@builder.io/qwik";
+import { component$, useVisibleTask$ } from "@qwik.dev/core";
 import {
   routeAction$,
   Form,
   z,
   zod$,
   type DocumentHead,
-} from "@builder.io/qwik-city";
-import { getApiUrl } from "~/lib/config";
+} from "@qwik.dev/router";
+import { serverApi } from "~/lib/server-api";
 
 // Login action - runs on server only
 export const useLogin = routeAction$(
   async (data, { cookie, fail }) => {
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-        }),
+      const result = await serverApi.login({
+        email: data.email,
+        password: data.password,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("Login failed:", error);
-        return fail(response.status, {
-          message: error.error || "Login failed",
-        });
-      }
-
-      const result = await response.json();
       console.log("Login successful for:", data.email);
-
-      // Extract refreshToken from Set-Cookie header if present
-      const setCookieHeader = response.headers.get("set-cookie");
-      if (setCookieHeader) {
-        const refreshTokenMatch = setCookieHeader.match(/refreshToken=([^;]+)/);
-        if (refreshTokenMatch) {
-          const refreshToken = refreshTokenMatch[1];
-          cookie.set("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: false, // false for localhost
-            sameSite: "lax",
-            maxAge: 7 * 24 * 60 * 60, // 7 days
-            path: "/",
-          });
-        }
-      }
 
       // Set access token cookie for client-side access
       if (result.accessToken) {
@@ -67,18 +37,18 @@ export const useLogin = routeAction$(
         });
       }
 
+      // Note: refreshToken is set by the backend via Set-Cookie header with httpOnly flag
+      // We don't need to manually set it here
+
       // Return success - we'll handle redirect on client
       return {
         success: true,
         redirectTo: "/logged-in",
       };
     } catch (error) {
-      // If it's a redirect, re-throw it
-      if (error && typeof error === "object" && "status" in error) {
-        throw error;
-      }
-      return fail(500, {
-        message: "Network error. Please try again.",
+      console.error("Login failed:", error);
+      return fail(400, {
+        message: error instanceof Error ? error.message : "Login failed",
       });
     }
   },

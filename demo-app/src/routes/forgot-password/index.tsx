@@ -4,10 +4,16 @@
  * Allows users to request a password reset email.
  */
 
-import { component$, useSignal } from "@builder.io/qwik";
-import { routeAction$, Form, type DocumentHead } from "@builder.io/qwik-city";
+import {
+  component$,
+  useSignal,
+  useContext,
+  useVisibleTask$,
+} from "@qwik.dev/core";
+import { routeAction$, Form, type DocumentHead } from "@qwik.dev/router";
 import { z } from "zod";
-import { getApiUrl } from "~/lib/config";
+import { serverApi } from "~/lib/server-api";
+import { ToastContextId } from "~/lib/toast-context";
 
 // Server action for password reset request
 export const useForgotPasswordAction = routeAction$(async (data, { fail }) => {
@@ -19,37 +25,23 @@ export const useForgotPasswordAction = routeAction$(async (data, { fail }) => {
   if (!result.success) {
     return fail(400, {
       fieldErrors: {
-        email: result.error.errors[0]?.message,
+        email: result.error.issues[0]?.message,
       },
     });
   }
 
   try {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/forgot-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email: result.data.email }),
-    });
-
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      return fail(response.status, {
-        message: responseData.message || "Failed to send reset email",
-      });
-    }
+    const response = await serverApi.forgotPassword(result.data.email);
 
     return {
       success: true,
-      message: responseData.message,
+      message: response.message,
     };
   } catch (error) {
     console.error("Forgot password error:", error);
-    return fail(500, {
-      message: "Network error. Please try again.",
+    return fail(400, {
+      message:
+        error instanceof Error ? error.message : "Failed to send reset email",
     });
   }
 });
@@ -57,6 +49,19 @@ export const useForgotPasswordAction = routeAction$(async (data, { fail }) => {
 export default component$(() => {
   const action = useForgotPasswordAction();
   const isSubmitting = useSignal(false);
+  const toastCtx = useContext(ToastContextId);
+
+  // Show toast notification when reset email is sent
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const value = track(() => action.value);
+
+    if (value?.success) {
+      toastCtx.showToast(value.message, "success");
+    } else if (value?.failed && value?.message) {
+      toastCtx.showToast(value.message, "error");
+    }
+  });
 
   return (
     <div class="min-h-screen bg-white flex items-center justify-center px-6">
@@ -87,12 +92,6 @@ export default component$(() => {
           </div>
         ) : (
           <Form action={action} class="space-y-8">
-            {action.value?.message && (
-              <div class="border border-black p-4 mb-8">
-                <p class="text-sm">{action.value.message}</p>
-              </div>
-            )}
-
             <div>
               <label
                 for="email"

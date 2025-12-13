@@ -95,11 +95,11 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
-      console.error("Validation error:", error.errors);
+      console.error("Validation error:", error.issues);
       return c.json(
         {
           error: "Validation failed",
-          details: error.errors.map((e) => ({
+          details: error.issues.map((e) => ({
             field: e.path.join("."),
             message: e.message,
           })),

@@ -28,7 +28,7 @@ app.post("/", async (c) => {
 
     if (!validation.success) {
       return c.json(
-        { error: validation.error.errors[0]?.message || "Invalid request" },
+        { error: validation.error.issues[0]?.message || "Invalid request" },
         400
       );
     }

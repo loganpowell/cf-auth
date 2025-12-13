@@ -9,7 +9,9 @@
     "dev:backend": "wrangler dev",
     "deploy": "wrangler deploy",
     "build": "tsc && pnpm run compile:emails",
-    "compile:emails": "tsx scripts/compile-emails.ts",
+    "compile:emails": "tsx scripts/email/compile-emails.ts",
+    "generate:openapi": "tsx scripts/openapi/generate-openapi.ts && tsx scripts/openapi/fix-openapi-nullable.ts",
+    "generate:sdk": "pnpm run generate:openapi && cd demo-app && pnpm run generate:sdk",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
@@ -19,11 +21,13 @@
     "pulumi:destroy": "cd infrastructure && pulumi destroy"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.2.0",
     "@cloudflare/workers-types": "^4.20241127.0",
+    "@hono/zod-openapi": "^1.1.5",
     "arctic": "^1.9.2",
     "hono": "^4.6.14",
     "jose": "^5.9.6",
-    "zod": "^3.23.8"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@pulumi/cloudflare": "^5.42.0",

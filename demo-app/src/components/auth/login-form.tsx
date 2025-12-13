@@ -4,8 +4,8 @@
  * Handles user login with email and password.
  */
 
-import { component$, useSignal, $ } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
+import { component$, useSignal, $ } from "@qwik.dev/core";
+import { useNavigate } from "@qwik.dev/router";
 import { login$, ApiError } from "~/lib/api";
 
 export const LoginForm = component$(() => {

@@ -4,16 +4,12 @@
  * User account settings including password change
  */
 
-import { component$ } from "@builder.io/qwik";
-import {
-  routeLoader$,
-  routeAction$,
-  Form,
-  z,
-  zod$,
-} from "@builder.io/qwik-city";
-import type { User, ChangePasswordRequest } from "@/types/shared";
-import { getApiUrl } from "~/lib/config";
+import { component$, useContext, useVisibleTask$ } from "@qwik.dev/core";
+import { routeLoader$, routeAction$, Form, z, zod$ } from "@qwik.dev/router";
+import type { ChangePasswordRequest } from "@/types/shared";
+import { serverApi } from "~/lib/server-api";
+import { getApiUrl } from "~/lib/config"; // Still needed for password change
+import { ToastContextId } from "~/lib/toast-context";
 
 // Fetch user data
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
@@ -24,23 +20,39 @@ export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
     throw redirect(302, "/");
   }
 
-  try {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken?.value}`,
-      },
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as User;
-      return { user: data };
+  // Auto-refresh if needed
+  if (!accessToken?.value && refreshToken) {
+    try {
+      const refreshData = await serverApi.refresh();
+      cookie.set("accessToken", refreshData.accessToken, {
+        httpOnly: false,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 15,
+      });
+      const newAccessToken = cookie.get("accessToken");
+      if (newAccessToken?.value) {
+        const userData = await serverApi.getMe(newAccessToken.value);
+        return userData;
+      }
+    } catch (error) {
+      console.error("Failed to refresh token:", error);
+      throw redirect(302, "/");
     }
-  } catch (error) {
-    console.error("Failed to fetch user data:", error);
   }
 
-  return { user: null };
+  if (!accessToken?.value) {
+    throw redirect(302, "/");
+  }
+
+  try {
+    const userData = await serverApi.getMe(accessToken.value);
+    return userData;
+  } catch (error) {
+    console.error("Failed to fetch user data:", error);
+    throw redirect(302, "/");
+  }
 });
 
 // Password change action
@@ -100,6 +112,19 @@ export const useChangePassword = routeAction$(
 export default component$(() => {
   const userData = useUserData();
   const changePassword = useChangePassword();
+  const toastCtx = useContext(ToastContextId);
+
+  // Show toast notification when password is changed
+  // eslint-disable-next-line qwik/no-use-visible-task
+  useVisibleTask$(({ track }) => {
+    const value = track(() => changePassword.value);
+
+    if (value?.success) {
+      toastCtx.showToast(value.message, "success");
+    } else if (value?.failed && value?.message) {
+      toastCtx.showToast(value.message, "error");
+    }
+  });
 
   return (
     <div class="max-w-4xl">
@@ -147,9 +172,7 @@ export default component$(() => {
                 Account Created
               </label>
               <p class="text-sm">
-                {new Date(
-                  userData.value.user.createdAt * 1000
-                ).toLocaleDateString()}
+                {new Date(userData.value.user.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -161,18 +184,6 @@ export default component$(() => {
         <h2 class="text-2xl font-light tracking-tightest mb-6">
           Change Password
         </h2>
-
-        {changePassword.value?.success && (
-          <div class="border border-black p-4 mb-6">
-            <p class="text-sm">{changePassword.value.message}</p>
-          </div>
-        )}
-
-        {changePassword.value?.failed && (
-          <div class="border border-black p-4 mb-6">
-            <p class="text-sm">{changePassword.value.message}</p>
-          </div>
-        )}
 
         <Form action={changePassword} class="space-y-8">
           <div>

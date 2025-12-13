@@ -12,7 +12,7 @@ import {
   useSignal,
   useTask$,
   type Signal,
-} from "@builder.io/qwik";
+} from "@qwik.dev/core";
 import type { AuthState, User } from "./types";
 
 /**

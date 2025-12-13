@@ -4,8 +4,8 @@
  * Handles user registration with email, password, and display name.
  */
 
-import { component$, useSignal, $, useComputed$ } from "@builder.io/qwik";
-import { useNavigate } from "@builder.io/qwik-city";
+import { component$, useSignal, $, useComputed$ } from "@qwik.dev/core";
+import { useNavigate } from "@qwik.dev/router";
 import { register$, ApiError } from "~/lib/api";
 
 export const RegisterForm = component$(() => {

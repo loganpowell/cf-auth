@@ -4,9 +4,19 @@
  * Handles email verification via token from the verification email.
  */
 
-import { component$, useSignal, useVisibleTask$ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
-import { getApiUrl } from "~/lib/config";
+import {
+  component$,
+  useSignal,
+  useVisibleTask$,
+  useContext,
+} from "@qwik.dev/core";
+import {
+  routeLoader$,
+  routeAction$,
+  type DocumentHead,
+} from "@qwik.dev/router";
+import { serverApi } from "~/lib/server-api";
+import { ToastContextId } from "~/lib/toast-context";
 
 // Loader to get token from query params
 export const useVerificationToken = routeLoader$(({ query }) => {
@@ -15,11 +25,35 @@ export const useVerificationToken = routeLoader$(({ query }) => {
   };
 });
 
+// Server action for email verification
+export const useVerifyEmailAction = routeAction$(
+  async ({ token }, { fail }) => {
+    if (!token) {
+      return fail(400, { message: "No verification token provided" });
+    }
+
+    try {
+      const result = await serverApi.verifyEmail(token as string);
+      return {
+        success: true,
+        message: result.message,
+      };
+    } catch (error) {
+      console.error("Email verification error:", error);
+      return fail(400, {
+        message: error instanceof Error ? error.message : "Verification failed",
+      });
+    }
+  }
+);
+
 export default component$(() => {
   const tokenData = useVerificationToken();
+  const verifyAction = useVerifyEmailAction();
   const status = useSignal<"verifying" | "success" | "error">("verifying");
   const message = useSignal("");
   const shouldRedirect = useSignal(false);
+  const toastCtx = useContext(ToastContextId);
 
   // Handle redirect when flag is set
   // eslint-disable-next-line qwik/no-use-visible-task
@@ -45,54 +79,44 @@ export default component$(() => {
     if (!token) {
       status.value = "error";
       message.value = "No verification token provided";
+      toastCtx.showToast("No verification token provided", "error");
       return;
     }
 
-    try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/v1/auth/verify-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ token }),
-      });
+    // Submit the verification action
+    const result = await verifyAction.submit({ token });
 
-      const data = await response.json();
+    if (result.value?.success) {
+      status.value = "success";
+      message.value = result.value.message || "Email verified successfully!";
+      toastCtx.showToast(message.value, "success");
 
-      if (response.ok) {
-        status.value = "success";
-        message.value = data.message || "Email verified successfully!";
-
-        // Trigger redirect
-        shouldRedirect.value = true;
-      } else {
-        status.value = "error";
-        message.value = data.error || "Verification failed";
-      }
-    } catch {
+      // Trigger redirect
+      shouldRedirect.value = true;
+    } else {
       status.value = "error";
-      message.value = "Network error. Please try again.";
+      message.value = result.value?.message || "Verification failed";
+      toastCtx.showToast(message.value, "error");
     }
   });
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
+    <div class="min-h-screen bg-white flex items-center justify-center px-6">
       <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-gray-800 mb-2">
-            🔐 Email Verification
+        <div class="mb-16 text-center">
+          <h1 class="text-6xl font-light tracking-tightest mb-6">
+            Email Verification
           </h1>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-xl p-8">
+        <div class="card p-8">
           {status.value === "verifying" && (
             <div class="text-center">
-              <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-              <h2 class="text-xl font-semibold text-gray-800 mb-2">
+              <div class="inline-block animate-spin h-12 w-12 border-2 border-black border-t-transparent mb-6"></div>
+              <h2 class="text-2xl font-light tracking-tightest mb-4">
                 Verifying your email...
               </h2>
-              <p class="text-gray-600">
+              <p class="text-sm opacity-60">
                 Please wait while we verify your email address.
               </p>
             </div>
@@ -100,64 +124,61 @@ export default component$(() => {
 
           {status.value === "success" && (
             <div class="text-center">
-              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+              <div class="inline-flex items-center justify-center w-16 h-16 border border-black mb-6">
                 <svg
-                  class="w-8 h-8 text-green-600"
+                  class="w-8 h-8"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-linecap="square"
+                    stroke-linejoin="miter"
+                    stroke-width="1"
                     d="M5 13l4 4L19 7"
                   />
                 </svg>
               </div>
-              <h2 class="text-xl font-semibold text-gray-800 mb-2">
+              <h2 class="text-2xl font-light tracking-tightest mb-4">
                 Email Verified!
               </h2>
-              <p class="text-gray-600 mb-4">{message.value}</p>
-              <p class="text-sm text-gray-500">Redirecting you to login...</p>
+              <p class="text-sm opacity-60 mb-4">{message.value}</p>
+              <p class="text-xs opacity-40">Redirecting you to login...</p>
             </div>
           )}
 
           {status.value === "error" && (
             <div class="text-center">
-              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+              <div class="inline-flex items-center justify-center w-16 h-16 border border-black mb-6">
                 <svg
-                  class="w-8 h-8 text-red-600"
+                  class="w-8 h-8"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
                   <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
+                    stroke-linecap="square"
+                    stroke-linejoin="miter"
+                    stroke-width="1"
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
               </div>
-              <h2 class="text-xl font-semibold text-gray-800 mb-2">
+              <h2 class="text-2xl font-light tracking-tightest mb-4">
                 Verification Failed
               </h2>
-              <p class="text-gray-600 mb-6">{message.value}</p>
-              <div class="space-y-3">
+              <p class="text-sm opacity-60 mb-8">{message.value}</p>
+              <div class="space-y-4">
                 <button
                   onClick$={() => {
                     window.location.href = "/";
                   }}
-                  class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-all"
+                  class="btn w-full"
                 >
                   Go to Login
                 </button>
-                <a
-                  href="/resend-verification"
-                  class="block w-full text-center text-blue-600 hover:text-blue-700 font-medium py-2"
-                >
-                  Resend Verification Email
+                <a href="/dashboard" class="block w-full text-center text-sm">
+                  Resend Verification Email →
                 </a>
               </div>
             </div>

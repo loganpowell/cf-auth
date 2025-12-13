@@ -56,7 +56,7 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: "Validation failed",
-          details: error.errors.map((err) => ({
+          details: error.issues.map((err) => ({
             field: err.path.join("."),
             message: err.message,
           })),

@@ -4,7 +4,7 @@
  * Allows new users to create an account using Qwik routeAction$.
  */
 
-import { component$, useSignal, useComputed$ } from "@builder.io/qwik";
+import { component$, useSignal, useComputed$, $ } from "@qwik.dev/core";
 import {
   routeAction$,
   Form,
@@ -12,52 +12,30 @@ import {
   zod$,
   // useNavigate,
   type DocumentHead,
-} from "@builder.io/qwik-city";
-import { getApiUrl } from "~/lib/config";
+} from "@qwik.dev/router";
+import { serverApi } from "~/lib/server-api";
 
 // Register action - runs on server only
 export const useRegister = routeAction$(
-  async (data, { cookie, fail }) => {
+  async (data, { fail }) => {
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/v1/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-          displayName: data.displayName,
-        }),
+      const result = await serverApi.register({
+        email: data.email,
+        password: data.password,
+        displayName: data.displayName,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        return fail(response.status, {
-          message: error.error || "Registration failed",
-        });
-      }
-
-      const result = await response.json();
-
-      // Set the refresh token cookie
-      if (result.refreshToken) {
-        cookie.set("refreshToken", result.refreshToken, {
-          httpOnly: true,
-          secure: false, // Set to true in production with HTTPS
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60, // 7 days
-          path: "/",
-        });
-      }
+      // Note: Registration doesn't return access token - users must verify email first
+      // The backend will send a verification email
 
       return {
         success: true,
-        accessToken: result.accessToken,
         user: result.user,
       };
-    } catch {
-      return fail(500, {
-        message: "Network error. Please try again.",
+    } catch (error) {
+      console.error("Registration failed:", error);
+      return fail(400, {
+        message: error instanceof Error ? error.message : "Registration failed",
       });
     }
   },
@@ -140,13 +118,13 @@ export default component$(() => {
         <Form
           action={register}
           class="space-y-8"
-          onSubmitCompleted$={async () => {
-            if (register.value?.success && register.value.accessToken) {
-              if (typeof window !== "undefined") {
-                localStorage.setItem("accessToken", register.value.accessToken);
-              }
+          onSubmitCompleted$={$(() => {
+            // Registration successful - user needs to verify email before logging in
+            // No access token is provided at this stage
+            if (register.value?.success) {
+              console.log("Registration successful, please verify your email");
             }
-          }}
+          })}
         >
           <div>
             <label

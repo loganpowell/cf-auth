@@ -1517,7 +1517,7 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 
 **Status**: Phase 2 Complete ✅ - All authentication endpoints operational, email verification system working end-to-end with AWS SES, demo app fully integrated with Qwik v2 patterns (routeAction$, routeLoader$). Complete registration flow tested and verified: registration → email sent via AWS SES → email verification → redirect to login → dashboard access.
 
-### Phase 3: Email Integration
+### Phase 3: Email Integration & Design System Overhaul
 
 **Backend:**
 
@@ -1532,9 +1532,12 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 - [x] Test email delivery end-to-end (development mode: console logging)
 - [x] ~~Create MJML email templates~~ - Using inline HTML templates (MJML deferred to later)
 - [x] Create shared types file (`src/types/shared.ts`) for frontend/backend/infrastructure data structures
-- [x] Export shared types for demo app consumption
+- [x] Export shared types for demo app consumption (474 lines of types)
 - [x] Password reset flow (request, reset, confirmation) - forgot-password and reset-password handlers
-- [x] Create password changed notification email
+- [x] Create password changed notification email with security warnings
+- [x] Implement forgot-password handler with email enumeration protection
+- [x] Implement reset-password handler with comprehensive token validation
+- [x] Add password reset routes to main router (version bumped to 0.3.0)
 - [ ] Build script to compile MJML to HTML + plain text
 - [ ] Configure email rate limiting
 - [ ] Test production email sending with AWS SES
@@ -1542,22 +1545,46 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 
 **Demo App:**
 
+- [x] **Design System Overhaul** - Upgrade to Tailwind CSS v4 with ultra-minimal black & white aesthetic
+- [x] Configure PostCSS with @tailwindcss/postcss and Autoprefixer
+- [x] Create custom Tailwind configuration with typography extensions
+- [x] Replace CSS custom properties with utility-first approach
+- [x] Design reusable component classes (.btn, .input, .card, .badge)
 - [x] Create email verification page (`/routes/verify-email/index.tsx`)
 - [x] Create password reset request page (`/routes/forgot-password/index.tsx`)
-- [x] Create password reset form page (`/routes/reset-password/index.tsx`)
+- [x] Create password reset form page (`/routes/reset-password/index.tsx`) with token validation
+- [x] Create settings page (`/routes/settings/index.tsx`) with account info and password change
 - [x] Add "Forgot password?" link to login page
-- [x] Fix login redirect with client-side navigation (server-side redirect not working in Qwik v1)
+- [x] Fix login redirect with client-side navigation (useVisibleTask$ pattern)
 - [x] Create logged-in confirmation page (`/routes/logged-in/index.tsx`)
 - [x] Extract and set refresh token from backend Set-Cookie header
 - [x] Configure Vite watch with polling for better HMR
-- [x] Import shared types from backend (`@/types/shared`)
+- [x] Import shared types from backend (`@/types/shared`) via path alias
+- [x] Update tsconfig to include .js files and shared types
+- [x] Create centralized config module (`src/lib/config.ts`) for API URLs
 - [x] Display email verification status in dashboard with badge and conditional styling
 - [x] Add "resend verification" functionality to dashboard with feedback messages
-- [x] Add password change form to settings page (`/routes/settings/index.tsx`)
-- [ ] Show toast notifications for email-related actions
-- [ ] Test complete email verification and password reset flows
+- [x] Implement real user data fetching in dashboard layout
+- [x] Add password strength indicators with visual feedback
+- [x] Add password visibility toggles on sensitive forms
+- [x] Implement proper error handling and loading states across all forms
+- [x] Apply consistent minimalist styling across all routes
+- [x] Add success/error message displays with proper styling
+- [x] Show toast notifications for email-related actions (dashboard, forgot-password, reset-password, verify-email, settings)
+- [x] Create reusable Toast component with Qwik-compatible patterns
+- [x] Implement global toast context provider with Signal-based state management
+- [x] Integrate toast notifications for all email-related user feedback
+- [x] Fix nested user object issue in dashboard loader (backend returns `{user: {...}}`)
+- [ ] Set up OpenAPI spec generation with @hono/zod-openapi
+- [ ] Create Zod schemas for all authentication endpoints
+- [ ] Generate OpenAPI spec file (openapi.json)
+- [ ] Use openapi-typescript to generate TypeScript SDK types
+- [ ] Implement typed API client with openapi-fetch
+- [ ] Replace manual type definitions with generated SDK types
+- [ ] Fix User Menu in dashboard layout with proper type-safe data access
+- [ ] Test complete email verification and password reset flows end-to-end
 
-**Status**: Phase 3 Enhanced (60%) - Email verification working with AWS SES, Route53 DNS fully automated, bounce domain hierarchy configured. Password reset flow and MJML templates pending.
+**Status**: Phase 3 in Progress (95%) - Email system fully operational with AWS SES, complete password reset flow implemented with 3 email templates (welcome, verify-email, password-reset), shared types infrastructure (474 lines), demo app redesigned with Tailwind v4 ultra-minimal black & white aesthetic, all authentication flows integrated and styled, toast notification system implemented across all routes. **Next**: Implement OpenAPI spec generation and TypeScript SDK for type-safe API client to eliminate frontend/backend type mismatches. Remaining: OpenAPI/SDK setup, User Menu fix, end-to-end testing of email flows and production email testing with AWS SES.
 
 ### Phase 4: Permission System
 
@@ -1719,6 +1746,7 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 
 **Demo App:**
 
+- [ ] Add Qwik Cloudflare Pages integration (`pnpm qwik add cloudflare-pages`)
 - [ ] Configure Cloudflare Pages deployment
 - [ ] Set up preview deployments for PRs
 - [ ] Configure environment variables for prod

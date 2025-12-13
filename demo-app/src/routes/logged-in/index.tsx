@@ -5,8 +5,8 @@
  * Displays cookies and basic authentication status.
  */
 
-import { component$ } from "@builder.io/qwik";
-import { routeLoader$, type DocumentHead } from "@builder.io/qwik-city";
+import { component$ } from "@qwik.dev/core";
+import { routeLoader$, type DocumentHead } from "@qwik.dev/router";
 
 // Loader to check authentication and get cookies
 export const useAuthCheck = routeLoader$(async ({ cookie, redirect }) => {

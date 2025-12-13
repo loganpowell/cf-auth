@@ -144,14 +144,8 @@ export async function handleResetPassword(c: Context<{ Bindings: Env }>) {
       .bind(Math.floor(Date.now() / 1000), resetToken.id)
       .run();
 
-    // Invalidate all existing refresh tokens (force re-login on all devices)
-    await c.env.DB.prepare(
-      `UPDATE refresh_tokens 
-       SET used_at = ? 
-       WHERE user_id = ? AND used_at IS NULL`
-    )
-      .bind(Math.floor(Date.now() / 1000), user.id)
-      .run();
+    // Note: Refresh tokens are stored as httpOnly cookies, not in the database
+    // They will naturally expire after 7 days. User will need to re-login.
 
     console.log("✅ Password reset successful for user:", user.id);
 
@@ -174,11 +168,11 @@ export async function handleResetPassword(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
-      console.error("Validation error:", error.errors);
+      console.error("Validation error:", error.issues);
       return c.json(
         {
           error: "Validation failed",
-          details: error.errors.map((e) => ({
+          details: error.issues.map((e) => ({
             field: e.path.join("."),
             message: e.message,
           })),

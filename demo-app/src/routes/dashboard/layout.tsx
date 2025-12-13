@@ -5,36 +5,72 @@
  * Fetches user data and displays it in the header.
  */
 
-import { component$, Slot, $, useSignal } from "@builder.io/qwik";
-import { routeLoader$, useNavigate } from "@builder.io/qwik-city";
-import type { User } from "@/types/shared";
-import { getApiUrl } from "~/lib/config";
+import { component$, Slot, $, useSignal } from "@qwik.dev/core";
+import { routeLoader$, useNavigate } from "@qwik.dev/router";
+import { serverApi } from "~/lib/server-api";
 
 // Fetch user data for layout
-export const useLayoutUserData = routeLoader$(async ({ cookie }) => {
+export const useLayoutUserData = routeLoader$(async ({ cookie, redirect }) => {
   const accessToken = cookie.get("accessToken");
+  const refreshToken = cookie.get("refreshToken");
 
-  if (!accessToken) {
-    return { user: null };
+  console.log("🎨 Layout Loader - Tokens:", {
+    hasRefreshToken: !!refreshToken,
+    hasAccessToken: !!accessToken,
+    accessTokenValue: accessToken?.value ? "present" : "missing",
+  });
+
+  // Automatic token refresh if access token missing but refresh token exists
+  if (!accessToken?.value && refreshToken) {
+    console.log("🔄 Layout - Access token missing, attempting refresh...");
+    try {
+      const refreshData = await serverApi.refresh();
+      console.log("✅ Layout - Token refreshed successfully");
+      cookie.set("accessToken", refreshData.accessToken, {
+        httpOnly: false,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 15, // 15 minutes
+      });
+      // Get the new access token
+      const newAccessToken = cookie.get("accessToken");
+      if (newAccessToken?.value) {
+        console.log(
+          "📡 Layout - Calling serverApi.getMe with refreshed token..."
+        );
+        const userData = await serverApi.getMe(newAccessToken.value);
+        console.log("✅ Layout - User data received:", {
+          email: userData.user.email,
+          displayName: userData.user.displayName,
+          verified: userData.user.emailVerified,
+        });
+        return userData; // Return the full API response { user: {...} }
+      }
+    } catch (error) {
+      console.error("❌ Layout - Token refresh error:", error);
+      throw redirect(302, "/");
+    }
+  }
+
+  if (!accessToken?.value) {
+    console.log("⚠️ Layout - No access token or refresh token available");
+    throw redirect(302, "/");
   }
 
   try {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken.value}`,
-      },
+    console.log("📡 Layout - Calling serverApi.getMe...");
+    const userData = await serverApi.getMe(accessToken.value);
+    console.log("✅ Layout - User data received:", {
+      email: userData.user.email,
+      displayName: userData.user.displayName,
+      verified: userData.user.emailVerified,
     });
-
-    if (response.ok) {
-      const data = (await response.json()) as User;
-      return { user: data };
-    }
+    return userData; // Return the full API response { user: {...} }
   } catch (error) {
-    console.error("Failed to fetch user data in layout:", error);
+    console.error("❌ Layout - Failed to fetch user data:", error);
+    throw redirect(302, "/");
   }
-
-  return { user: null };
 });
 
 export default component$(() => {
@@ -43,20 +79,15 @@ export default component$(() => {
   const layoutData = useLayoutUserData();
 
   const handleLogout = $(async () => {
-    // Clear local storage and navigate to login
+    // Call logout endpoint to invalidate server-side tokens (fire and forget)
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("accessToken");
       if (token) {
-        // Call logout endpoint (fire and forget)
-        const apiUrl = getApiUrl();
-        fetch(`${apiUrl}/v1/auth/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }).catch(() => {
+        try {
+          await serverApi.logout(token);
+        } catch {
           // Ignore errors - we're logging out anyway
-        });
+        }
       }
       localStorage.removeItem("accessToken");
     }
@@ -85,17 +116,17 @@ export default component$(() => {
                 }}
                 class="flex items-center space-x-4 px-4 py-2 border border-black hover:bg-black hover:text-white transition-all duration-150"
               >
-                <div class="flex items-center justify-center w-8 h-8 border border-black text-xs font-medium">
+                <span class="flex items-center justify-center w-8 h-8 border border-black text-xs font-medium">
                   {userInitial}
-                </div>
-                <div class="text-left">
-                  <div class="text-sm font-medium">
+                </span>
+                <span class="text-left inline-block">
+                  <span class="text-sm font-medium block">
                     {user?.displayName || "User"}
-                  </div>
-                  <div class="text-xs opacity-60">
+                  </span>
+                  <span class="text-xs opacity-60 block">
                     {user?.email || "Authenticated"}
-                  </div>
-                </div>
+                  </span>
+                </span>
               </button>
 
               {/* Dropdown Menu */}

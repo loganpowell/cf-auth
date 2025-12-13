@@ -8,7 +8,7 @@ This directory contains the Pulumi Infrastructure as Code (IaC) for the auth ser
 
 ```bash
 cd infrastructure
-./setup.sh
+./scripts/setup.sh
 ```
 
 This will guide you through:

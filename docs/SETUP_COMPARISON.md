@@ -303,7 +303,7 @@ cd ../..
 - ✅ When you have Route53 DNS
 - ✅ When you want minimal manual steps
 
-**Use old `setup.sh` if:**
+**Use old `scripts/setup.sh` if:**
 
 - ⚠️ You cannot use Route53 for DNS
 - ⚠️ You need manual control over each step

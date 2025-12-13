@@ -1,6 +1,14 @@
-import { component$, isDev } from "@builder.io/qwik";
-import { QwikCityProvider, RouterOutlet } from "@builder.io/qwik-city";
+import {
+  component$,
+  isDev,
+  useSignal,
+  useContextProvider,
+  $,
+} from "@qwik.dev/core";
+import { QwikRouterProvider, RouterOutlet } from "@qwik.dev/router";
 import { RouterHead } from "./components/router-head/router-head";
+import { ToastContainer, type Toast } from "./components/ui/toast";
+import { ToastContextId, showToast } from "./lib/toast-context";
 
 import "./global.css";
 
@@ -12,8 +20,18 @@ export default component$(() => {
    * Don't remove the `<head>` and `<body>` elements.
    */
 
+  const toasts = useSignal<Toast[]>([]);
+
+  // Provide toast context to all components
+  useContextProvider(ToastContextId, {
+    toasts,
+    showToast: $((message: string, type?: "success" | "error" | "info") => {
+      showToast(toasts, message, type);
+    }),
+  });
+
   return (
-    <QwikCityProvider>
+    <QwikRouterProvider>
       <head>
         <meta charset="utf-8" />
         {!isDev && (
@@ -26,7 +44,8 @@ export default component$(() => {
       </head>
       <body lang="en">
         <RouterOutlet />
+        {toasts.value.length > 0 && <ToastContainer toasts={toasts} />}
       </body>
-    </QwikCityProvider>
+    </QwikRouterProvider>
   );
 });

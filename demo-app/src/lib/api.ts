@@ -5,7 +5,7 @@
  * Uses server$ for secure server-side API calls.
  */
 
-import { server$ } from "@builder.io/qwik-city";
+import { server$ } from "@qwik.dev/router";
 import type {
   User,
   LoginCredentials,
