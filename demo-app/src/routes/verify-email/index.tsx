@@ -16,7 +16,7 @@ import {
   type DocumentHead,
 } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
-import { ToastContextId } from "~/lib/toast-context";
+import { ToastContextId } from "~/contexts/toast-context";
 
 // Loader to get token from query params
 export const useVerificationToken = routeLoader$(({ query }) => {

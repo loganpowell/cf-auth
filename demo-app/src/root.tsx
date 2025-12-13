@@ -8,7 +8,7 @@ import {
 import { QwikRouterProvider, RouterOutlet } from "@qwik.dev/router";
 import { RouterHead } from "./components/router-head/router-head";
 import { ToastContainer, type Toast } from "./components/ui/toast";
-import { ToastContextId, showToast } from "./lib/toast-context";
+import { ToastContextId, showToast } from "./contexts/toast-context";
 
 import "./global.css";
 

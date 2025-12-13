@@ -12,7 +12,7 @@ import {
   Form,
   type DocumentHead,
 } from "@qwik.dev/router";
-import { ToastContextId } from "~/lib/toast-context";
+import { ToastContextId } from "~/contexts/toast-context";
 import { serverApi } from "~/lib/server-api";
 
 // Loader runs on server before rendering - fetches user data with type-safe API

@@ -55,6 +55,9 @@ AWS infrastructure and SES (Simple Email Service) management.
 - **verify-ses-dns.sh** - Verify DNS records for SES
 - **get-ses-credentials.sh** - Retrieve SES SMTP credentials
 - **cleanup-aws-resources.sh** - Clean up AWS resources
+
+### ☁️ `pulumi/`
+
 - **cleanup-all-resources.sh** - Clean up all infrastructure (AWS + Cloudflare)
 
 **Usage:**

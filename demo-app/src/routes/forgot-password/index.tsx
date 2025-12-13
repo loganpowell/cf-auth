@@ -13,7 +13,7 @@ import {
 import { routeAction$, Form, type DocumentHead } from "@qwik.dev/router";
 import { z } from "zod";
 import { serverApi } from "~/lib/server-api";
-import { ToastContextId } from "~/lib/toast-context";
+import { ToastContextId } from "~/contexts/toast-context";
 
 // Server action for password reset request
 export const useForgotPasswordAction = routeAction$(async (data, { fail }) => {

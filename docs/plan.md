@@ -19,9 +19,8 @@ Building a production-ready authentication service leveraging Cloudflare's edge 
   - [Qwik v2 Documentation](https://qwikdev-build-v2.qwik-8nx.pages.dev/docs/)
   - Integrated testing and development
 - **Documentation**:
-  - [Permission Model](./PERMISSION_MODEL.md) - Detailed permission system design
-  - [Project Summary](./PROJECT_SUMMARY.md) - Current status and progress
-  - [Qwik Instructions](./.github/instructions/qwik%20v2%20docs.instructions.md) - Framework guidelines
+  - [Permission Model](./permission-model.md) - Detailed permission system design
+  - [Qwik Instructions](../.github/instructions/qwik%20v2%20docs.instructions.md) - Framework guidelines
 
 **Deprecated**: `/example-app` (old HTML/JS prototype) - will be removed in Phase 1
 
@@ -836,7 +835,7 @@ User A wants to grant permissions to User B
 
 ### Permission Domains
 
-For detailed permission documentation, see [PERMISSION_MODEL.md](./PERMISSION_MODEL.md).
+For detailed permission documentation, see [PERMISSION_MODEL.md](./permission-model.md).
 
 #### Quick Reference: 5 Core Domains
 
@@ -1060,7 +1059,7 @@ For complete implementation details including:
 - Custom role creation
 - Expiration handling
 
-See [PERMISSION_MODEL.md](./PERMISSION_MODEL.md)
+See [PERMISSION_MODEL.md](./permission-model.md)
 
 ---
 
@@ -1098,7 +1097,7 @@ See [PERMISSION_MODEL.md](./PERMISSION_MODEL.md)
 
 #### Login/Registration Flow
 
-1. User clicks "Sign in with [Provider]"
+1. User clicks "Sign in with {Provider}"
 2. Backend generates secure state token (CSRF protection)
 3. Store state in `oauth_state` table with expiration (5 minutes)
 4. Redirect user to provider's authorization URL
@@ -1114,7 +1113,7 @@ See [PERMISSION_MODEL.md](./PERMISSION_MODEL.md)
 #### Account Linking Flow (Authenticated Users)
 
 1. User is already logged in with JWT
-2. User clicks "Link [Provider] Account"
+2. User clicks "Link {Provider} Account"
 3. Generate state token with `action: 'link'` and `user_id`
 4. Redirect to provider authorization
 5. Provider redirects to callback

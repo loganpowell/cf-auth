@@ -9,7 +9,7 @@ import { routeLoader$, routeAction$, Form, z, zod$ } from "@qwik.dev/router";
 import type { ChangePasswordRequest } from "@/types/shared";
 import { serverApi } from "~/lib/server-api";
 import { getApiUrl } from "~/lib/config"; // Still needed for password change
-import { ToastContextId } from "~/lib/toast-context";
+import { ToastContextId } from "~/contexts/toast-context";
 
 // Fetch user data
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {

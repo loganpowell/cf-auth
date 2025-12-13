@@ -30,7 +30,7 @@ export default component$(() => {
   const authData = useAuthCheck();
 
   return (
-    <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 flex items-center justify-center px-4">
+    <div class="min-h-screen bg-linear-to-br from-green-50 to-blue-100 flex items-center justify-center px-4">
       <div class="w-full max-w-2xl">
         <div class="bg-white rounded-2xl shadow-xl p-8">
           <div class="text-center mb-8">
