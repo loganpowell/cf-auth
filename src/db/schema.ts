@@ -194,6 +194,111 @@ export const oauthProviders = sqliteTable(
 );
 
 // ============================================================================
+// Roles (Phase 4)
+// ============================================================================
+
+export const roles = sqliteTable(
+  "roles",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    // Permission bitmap stored as two text fields (can hold bigint as string)
+    permissionsLow: text("permissions_low").notNull().default("0"), // Bits 0-63
+    permissionsHigh: text("permissions_high").notNull().default("0"), // Bits 64-127
+    isSystem: integer("is_system", { mode: "boolean" })
+      .notNull()
+      .default(false), // System roles cannot be deleted
+    organizationId: text("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }), // NULL = global system role
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("idx_roles_org").on(table.organizationId),
+    index("idx_roles_system").on(table.isSystem),
+  ]
+);
+
+// ============================================================================
+// Role Assignments (Phase 4)
+// ============================================================================
+
+export const roleAssignments = sqliteTable(
+  "role_assignments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }), // NULL = global assignment
+    teamId: text("team_id").references(() => teams.id, {
+      onDelete: "cascade",
+    }), // NULL = org-level assignment
+    grantedBy: text("granted_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }), // Who granted this role
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }), // NULL = no expiration
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("idx_role_assignments_user").on(table.userId),
+    index("idx_role_assignments_role").on(table.roleId),
+    index("idx_role_assignments_org").on(table.organizationId),
+    index("idx_role_assignments_team").on(table.teamId),
+    uniqueIndex("idx_role_assignments_unique").on(
+      table.userId,
+      table.roleId,
+      table.organizationId,
+      table.teamId
+    ),
+  ]
+);
+
+// ============================================================================
+// Permission Audit (Phase 4)
+// ============================================================================
+
+export const permissionAudit = sqliteTable(
+  "permission_audit",
+  {
+    id: text("id").primaryKey(),
+    action: text("action", {
+      enum: ["grant", "revoke", "role_create", "role_update", "role_delete"],
+    }).notNull(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }), // Who performed the action
+    targetUserId: text("target_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }), // Who was affected
+    roleId: text("role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    organizationId: text("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
+    teamId: text("team_id").references(() => teams.id, {
+      onDelete: "cascade",
+    }),
+    metadata: text("metadata"), // JSON - additional context
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("idx_permission_audit_actor").on(table.actorUserId),
+    index("idx_permission_audit_target").on(table.targetUserId),
+    index("idx_permission_audit_org").on(table.organizationId),
+    index("idx_permission_audit_created").on(table.createdAt),
+  ]
+);
+
+// ============================================================================
 // Audit Log (Phase 7)
 // ============================================================================
 
@@ -250,6 +355,18 @@ export type NewTeam = typeof teams.$inferInsert;
 // OAuth provider types (Phase 6)
 export type OAuthProvider = typeof oauthProviders.$inferSelect;
 export type NewOAuthProvider = typeof oauthProviders.$inferInsert;
+
+// Role types (Phase 4)
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;
+
+// Role assignment types (Phase 4)
+export type RoleAssignment = typeof roleAssignments.$inferSelect;
+export type NewRoleAssignment = typeof roleAssignments.$inferInsert;
+
+// Permission audit types (Phase 4)
+export type PermissionAudit = typeof permissionAudit.$inferSelect;
+export type NewPermissionAudit = typeof permissionAudit.$inferInsert;
 
 // Audit log types (Phase 7)
 export type AuditLog = typeof auditLog.$inferSelect;

@@ -14,6 +14,7 @@ import {
   type DocumentHead,
 } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
+import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
 
 // Login action - runs on server only
 export const useLogin = routeAction$(
@@ -82,7 +83,12 @@ export default component$(() => {
   });
 
   return (
-    <div class="min-h-screen bg-white flex items-center justify-center px-6">
+    <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-6 transition-colors duration-200">
+      {/* Dark mode toggle - fixed top right */}
+      <div class="fixed top-6 right-6">
+        <DarkModeToggle />
+      </div>
+
       <div class="w-full max-w-md">
         {/* Header */}
         <div class="mb-16">
@@ -94,7 +100,7 @@ export default component$(() => {
 
         {/* Error Message */}
         {login.value?.failed && (
-          <div class="mb-8 pb-6 border-b border-black">
+          <div class="mb-8 pb-6 border-b border-black dark:border-white">
             <p class="text-sm">{login.value.message}</p>
           </div>
         )}
@@ -151,7 +157,7 @@ export default component$(() => {
         </Form>
 
         {/* Footer Links */}
-        <div class="mt-12 pt-12 border-t border-black flex items-center justify-between text-sm">
+        <div class="mt-12 pt-12 border-t border-black dark:border-white flex items-center justify-between text-sm">
           <a href="/forgot-password">Forgot password?</a>
           <a href="/register">Create account</a>
         </div>

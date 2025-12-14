@@ -163,7 +163,7 @@ export default component$(() => {
 
       {/* Email Verification Status */}
       {userData.value.user && (
-        <div class="border border-black p-6 mb-12">
+        <div class="border border-black dark:border-white p-6 mb-12">
           <div class="mb-4">
             <span
               class={

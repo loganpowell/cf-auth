@@ -48,7 +48,7 @@ CREATE TABLE `organizations` (
 	`owner_user_id` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	`is_active` integer DEFAULT true NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
 	FOREIGN KEY (`owner_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE restrict
 );
 --> statement-breakpoint
@@ -68,6 +68,27 @@ CREATE TABLE `password_reset_tokens` (
 CREATE UNIQUE INDEX `password_reset_tokens_token_unique` ON `password_reset_tokens` (`token`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_password_reset_token` ON `password_reset_tokens` (`token`);--> statement-breakpoint
 CREATE INDEX `idx_password_reset_user` ON `password_reset_tokens` (`user_id`);--> statement-breakpoint
+CREATE TABLE `permission_audit` (
+	`id` text PRIMARY KEY NOT NULL,
+	`action` text NOT NULL,
+	`actor_user_id` text NOT NULL,
+	`target_user_id` text,
+	`role_id` text,
+	`organization_id` text,
+	`team_id` text,
+	`metadata` text,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`actor_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE restrict,
+	FOREIGN KEY (`target_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_permission_audit_actor` ON `permission_audit` (`actor_user_id`);--> statement-breakpoint
+CREATE INDEX `idx_permission_audit_target` ON `permission_audit` (`target_user_id`);--> statement-breakpoint
+CREATE INDEX `idx_permission_audit_org` ON `permission_audit` (`organization_id`);--> statement-breakpoint
+CREATE INDEX `idx_permission_audit_created` ON `permission_audit` (`created_at`);--> statement-breakpoint
 CREATE TABLE `refresh_tokens` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -80,6 +101,42 @@ CREATE TABLE `refresh_tokens` (
 --> statement-breakpoint
 CREATE INDEX `idx_refresh_tokens_user` ON `refresh_tokens` (`user_id`);--> statement-breakpoint
 CREATE INDEX `idx_refresh_tokens_hash` ON `refresh_tokens` (`token_hash`);--> statement-breakpoint
+CREATE TABLE `role_assignments` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`role_id` text NOT NULL,
+	`organization_id` text,
+	`team_id` text,
+	`granted_by` text NOT NULL,
+	`expires_at` integer,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`granted_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE restrict
+);
+--> statement-breakpoint
+CREATE INDEX `idx_role_assignments_user` ON `role_assignments` (`user_id`);--> statement-breakpoint
+CREATE INDEX `idx_role_assignments_role` ON `role_assignments` (`role_id`);--> statement-breakpoint
+CREATE INDEX `idx_role_assignments_org` ON `role_assignments` (`organization_id`);--> statement-breakpoint
+CREATE INDEX `idx_role_assignments_team` ON `role_assignments` (`team_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_role_assignments_unique` ON `role_assignments` (`user_id`,`role_id`,`organization_id`,`team_id`);--> statement-breakpoint
+CREATE TABLE `roles` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`description` text,
+	`permissions_low` text DEFAULT '0' NOT NULL,
+	`permissions_high` text DEFAULT '0' NOT NULL,
+	`is_system` integer DEFAULT false NOT NULL,
+	`organization_id` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_roles_org` ON `roles` (`organization_id`);--> statement-breakpoint
+CREATE INDEX `idx_roles_system` ON `roles` (`is_system`);--> statement-breakpoint
 CREATE TABLE `teams` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -87,7 +144,7 @@ CREATE TABLE `teams` (
 	`slug` text NOT NULL,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	`is_active` integer DEFAULT true NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
 	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -103,7 +160,7 @@ CREATE TABLE `users` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`last_login_at` integer,
-	`is_active` integer DEFAULT true NOT NULL
+	`status` text DEFAULT 'active' NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint

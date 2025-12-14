@@ -20,7 +20,19 @@ import {
   getMeRoute,
   refreshRoute,
   logoutRoute,
+  changePasswordRoute,
+  listUsersRoute,
 } from "./schemas/auth.schema";
+
+import {
+  grantRoleRoute,
+  revokeRoleRoute,
+  createRoleRoute,
+  listRolesRoute,
+  getRoleRoute,
+  getUserPermissionsRoute,
+  getAuditTrailRoute,
+} from "./schemas/permission.schema";
 
 // Import handlers (now simplified - just business logic)
 import { handleRegister } from "./handlers/register";
@@ -32,6 +44,18 @@ import { handleVerifyEmail } from "./handlers/verify-email";
 import { handleResendVerification } from "./handlers/resend-verification";
 import { handleForgotPassword } from "./handlers/forgot-password";
 import { handleResetPassword } from "./handlers/reset-password";
+import { handleChangePassword } from "./handlers/change-password";
+import { handleListUsers } from "./handlers/list-users";
+
+import {
+  handleGrantRole,
+  handleRevokeRole,
+  handleCreateRole,
+  handleListRoles,
+  handleGetRole,
+  handleGetUserPermissions,
+  handleGetAuditTrail,
+} from "./handlers/permissions";
 
 // Create OpenAPIHono app with typed environment
 const app = new OpenAPIHono<{ Bindings: Env }>();
@@ -55,7 +79,7 @@ app.get("/health", (c) => {
   return c.json({
     status: "ok",
     timestamp: Date.now(),
-    version: "0.3.0", // Phase 3 - Password Reset
+    version: "0.4.0", // Phase 4 - Permission System
   });
 });
 
@@ -70,14 +94,27 @@ app.openapi(resetPasswordRoute, handleResetPassword);
 app.openapi(getMeRoute, handleGetMe);
 app.openapi(refreshRoute, handleRefresh);
 app.openapi(logoutRoute, handleLogout);
+app.openapi(changePasswordRoute, handleChangePassword);
+app.openapi(listUsersRoute, handleListUsers);
+
+// Permission System routes (Phase 4)
+// Authentication and permission checks are handled inside each handler
+app.openapi(grantRoleRoute, handleGrantRole);
+app.openapi(revokeRoleRoute, handleRevokeRole);
+app.openapi(createRoleRoute, handleCreateRole);
+app.openapi(listRolesRoute, handleListRoles);
+app.openapi(getRoleRoute, handleGetRole);
+app.openapi(getUserPermissionsRoute, handleGetUserPermissions);
+app.openapi(getAuditTrailRoute, handleGetAuditTrail);
 
 // Generate OpenAPI spec endpoint
 app.doc("/openapi.json", {
   openapi: "3.1.0",
   info: {
     title: "CF-Auth API",
-    version: "0.3.0",
-    description: "Authentication and authorization API for Cloudflare Workers",
+    version: "0.4.0",
+    description:
+      "Authentication and authorization API for Cloudflare Workers with Permission Superset Model",
   },
   servers: [
     {

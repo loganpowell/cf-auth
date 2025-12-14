@@ -6,8 +6,9 @@
  */
 
 import { component$, Slot, $, useSignal } from "@qwik.dev/core";
-import { routeLoader$, useNavigate } from "@qwik.dev/router";
+import { routeLoader$, useNavigate, useLocation } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
+import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
 
 // Fetch user data for layout
 export const useLayoutUserData = routeLoader$(async ({ cookie, redirect }) => {
@@ -75,6 +76,7 @@ export const useLayoutUserData = routeLoader$(async ({ cookie, redirect }) => {
 
 export default component$(() => {
   const nav = useNavigate();
+  const loc = useLocation();
   const showUserMenu = useSignal(false);
   const layoutData = useLayoutUserData();
 
@@ -98,9 +100,9 @@ export default component$(() => {
   const userInitial = user?.displayName?.charAt(0).toUpperCase() || "U";
 
   return (
-    <div class="min-h-screen bg-white">
+    <div class="min-h-screen bg-white dark:bg-black transition-colors duration-200">
       {/* Header */}
-      <header class="border-b border-black">
+      <header class="bg-white dark:bg-black border-b border-black dark:border-white">
         <div class="container-custom py-8">
           <div class="flex items-center justify-between">
             {/* Logo */}
@@ -108,48 +110,103 @@ export default component$(() => {
               Auth
             </a>
 
-            {/* User Menu */}
-            <div class="relative">
-              <button
-                onClick$={() => {
-                  showUserMenu.value = !showUserMenu.value;
-                }}
-                class="flex items-center space-x-4 px-4 py-2 border border-black hover:bg-black hover:text-white transition-all duration-150"
-              >
-                <span class="flex items-center justify-center w-8 h-8 border border-black text-xs font-medium">
-                  {userInitial}
-                </span>
-                <span class="text-left inline-block">
-                  <span class="text-sm font-medium block">
-                    {user?.displayName || "User"}
-                  </span>
-                  <span class="text-xs opacity-60 block">
-                    {user?.email || "Authenticated"}
-                  </span>
-                </span>
-              </button>
+            {/* Right side: Dark Mode Toggle + User Menu */}
+            <div class="flex items-center gap-4">
+              {/* Dark Mode Toggle */}
+              <DarkModeToggle />
 
-              {/* Dropdown Menu */}
-              {showUserMenu.value && (
-                <div class="absolute right-0 mt-2 w-48 bg-white border border-black z-10">
-                  <a
-                    href="/settings"
-                    class="block px-4 py-3 text-sm hover:bg-black hover:text-white transition-all duration-150"
-                  >
-                    Settings
-                  </a>
-                  <button
-                    onClick$={handleLogout}
-                    class="w-full text-left px-4 py-3 text-sm hover:bg-black hover:text-white transition-all duration-150 border-t border-black"
-                  >
-                    Sign out
-                  </button>
-                </div>
-              )}
+              {/* User Menu */}
+              <div class="relative">
+                <button
+                  onClick$={() => {
+                    showUserMenu.value = !showUserMenu.value;
+                  }}
+                  class="flex items-center space-x-4 px-4 py-2 border border-black dark:border-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all duration-150"
+                >
+                  <span class="flex items-center justify-center w-8 h-8 border border-black dark:border-white text-xs font-medium">
+                    {userInitial}
+                  </span>
+                  <span class="text-left inline-block">
+                    <span class="text-sm font-medium block">
+                      {user?.displayName || "User"}
+                    </span>
+                    <span class="text-xs opacity-60 block">
+                      {user?.email || "Authenticated"}
+                    </span>
+                  </span>
+                </button>
+
+                {/* Dropdown Menu */}
+                {showUserMenu.value && (
+                  <div class="absolute right-0 mt-2 w-48 bg-white dark:bg-black border border-black dark:border-white z-10">
+                    <a
+                      href="/settings"
+                      class="block px-4 py-3 text-sm hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all duration-150"
+                    >
+                      Settings
+                    </a>
+                    <button
+                      onClick$={handleLogout}
+                      class="w-full text-left px-4 py-3 text-sm hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all duration-150 border-t border-black dark:border-white"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Navigation Menu */}
+      <nav class="bg-white dark:bg-black border-b border-black dark:border-white">
+        <div class="container-custom">
+          <div class="flex gap-1">
+            <a
+              href="/dashboard"
+              class={`
+                px-4 py-3 text-sm font-medium transition-all duration-150
+                ${
+                  loc.url.pathname === "/dashboard/" ||
+                  loc.url.pathname === "/dashboard"
+                    ? "bg-black dark:bg-white text-white dark:text-black"
+                    : "hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black"
+                }
+              `}
+            >
+              Dashboard
+            </a>
+            <a
+              href="/dashboard/permissions"
+              class={`
+                px-4 py-3 text-sm font-medium transition-all duration-150
+                ${
+                  loc.url.pathname.startsWith("/dashboard/permissions")
+                    ? "bg-black dark:bg-white text-white dark:text-black"
+                    : "hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black"
+                }
+              `}
+            >
+              Permissions
+            </a>
+            <a
+              href="/settings"
+              class={`
+                px-4 py-3 text-sm font-medium transition-all duration-150
+                ${
+                  loc.url.pathname === "/settings/" ||
+                  loc.url.pathname === "/settings"
+                    ? "bg-black dark:bg-white text-white dark:text-black"
+                    : "hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black"
+                }
+              `}
+            >
+              Settings
+            </a>
+          </div>
+        </div>
+      </nav>
 
       {/* Main Content */}
       <main class="container-custom section">

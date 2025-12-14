@@ -21,6 +21,9 @@ import {
   teams,
   oauthProviders,
   auditLog,
+  roles,
+  roleAssignments,
+  permissionAudit,
 } from "../db/schema";
 
 // Extend Zod with OpenAPI support
@@ -131,6 +134,42 @@ export const AuditLogSchema = createSelectSchema(auditLog).openapi("AuditLog");
 
 export const NewAuditLogSchema =
   createInsertSchema(auditLog).openapi("NewAuditLog");
+
+// ============================================================================
+// ROLES (Phase 4)
+// ============================================================================
+
+export const RoleSchema = createSelectSchema(roles).openapi("Role");
+
+export const NewRoleSchema = createInsertSchema(roles).openapi("NewRole");
+
+// API schema for roles with permission names
+export const RoleWithPermissionsSchema = RoleSchema.extend({
+  permissionNames: z.array(z.string()).openapi({
+    description: "Human-readable permission names",
+    example: ["org.read", "org.write", "team.read"],
+  }),
+}).openapi("RoleWithPermissions");
+
+// ============================================================================
+// ROLE ASSIGNMENTS (Phase 4)
+// ============================================================================
+
+export const RoleAssignmentSchema =
+  createSelectSchema(roleAssignments).openapi("RoleAssignment");
+
+export const NewRoleAssignmentSchema =
+  createInsertSchema(roleAssignments).openapi("NewRoleAssignment");
+
+// ============================================================================
+// PERMISSION AUDIT (Phase 4)
+// ============================================================================
+
+export const PermissionAuditSchema =
+  createSelectSchema(permissionAudit).openapi("PermissionAudit");
+
+export const NewPermissionAuditSchema =
+  createInsertSchema(permissionAudit).openapi("NewPermissionAudit");
 
 // ============================================================================
 // TYPE EXPORTS

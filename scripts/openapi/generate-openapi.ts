@@ -18,7 +18,18 @@ import {
   getMeRoute,
   refreshRoute,
   logoutRoute,
+  changePasswordRoute,
+  listUsersRoute,
 } from "../../src/schemas/auth.schema";
+import {
+  grantRoleRoute,
+  revokeRoleRoute,
+  createRoleRoute,
+  listRolesRoute,
+  getRoleRoute,
+  getUserPermissionsRoute,
+  getAuditTrailRoute,
+} from "../../src/schemas/permission.schema";
 
 // Create OpenAPI app
 const app = new OpenAPIHono();
@@ -89,6 +100,120 @@ app.openapi(logoutRoute, async (c) => {
   return c.json({ message: "" }, 200);
 });
 
+app.openapi(changePasswordRoute, async (c) => {
+  return c.json({ message: "Password changed successfully" }, 200);
+});
+
+app.openapi(listUsersRoute, async (c) => {
+  return c.json(
+    {
+      users: [
+        {
+          id: "",
+          email: "",
+          displayName: null,
+          emailVerified: false,
+          createdAt: 0,
+          status: "active" as const,
+        },
+      ],
+      count: 0,
+    },
+    200
+  );
+});
+
+// ============================================================================
+// Permission Routes
+// ============================================================================
+
+app.openapi(grantRoleRoute, async (c) => {
+  return c.json(
+    {
+      message: "Role granted successfully",
+      assignment: {
+        id: "",
+        userId: "",
+        roleId: "",
+        organizationId: null,
+        teamId: null,
+        grantedBy: "",
+        expiresAt: null,
+        createdAt: new Date(),
+      },
+    },
+    200
+  );
+});
+
+app.openapi(revokeRoleRoute, async (c) => {
+  return c.json({ message: "Role revoked successfully" }, 200);
+});
+
+app.openapi(createRoleRoute, async (c) => {
+  return c.json(
+    {
+      message: "Role created successfully",
+      role: {
+        id: "",
+        name: "",
+        description: null,
+        permissionsLow: "0",
+        permissionsHigh: "0",
+        isSystem: false,
+        organizationId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        permissionNames: [],
+      },
+    },
+    201
+  );
+});
+
+app.openapi(listRolesRoute, async (c) => {
+  return c.json({ roles: [] }, 200);
+});
+
+app.openapi(getRoleRoute, async (c) => {
+  return c.json(
+    {
+      role: {
+        id: "",
+        name: "",
+        description: null,
+        permissionsLow: "0",
+        permissionsHigh: "0",
+        isSystem: false,
+        organizationId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        permissionNames: [],
+      },
+    },
+    200
+  );
+});
+
+app.openapi(getUserPermissionsRoute, async (c) => {
+  return c.json(
+    {
+      userId: "",
+      isOwner: false,
+      permissions: {
+        low: "0",
+        high: "0",
+        names: [],
+      },
+    },
+    200
+  );
+});
+
+app.openapi(getAuditTrailRoute, async (c) => {
+  return c.json({ entries: [] }, 200);
+});
+
 // Use the built-in method to get the properly formatted OpenAPI spec
 // This converts Zod schemas to proper JSON Schema format
 const spec = app.getOpenAPIDocument({
@@ -112,7 +237,7 @@ if (!spec.components) {
   spec.components = {};
 }
 spec.components.securitySchemes = {
-  Bearer: {
+  bearerAuth: {
     type: "http",
     scheme: "bearer",
     bearerFormat: "JWT",

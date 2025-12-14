@@ -17,6 +17,7 @@ import {
 } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
 import { ToastContextId } from "~/contexts/toast-context";
+import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
 
 // Loader to get token from query params
 export const useVerificationToken = routeLoader$(({ query }) => {
@@ -99,7 +100,10 @@ export default component$(() => {
   });
 
   return (
-    <div class="min-h-screen bg-white flex items-center justify-center px-6">
+    <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-6 transition-colors duration-200">
+      <div class="fixed top-6 right-6">
+        <DarkModeToggle />
+      </div>
       <div class="w-full max-w-md">
         <div class="mb-16 text-center">
           <h1 class="text-6xl font-light tracking-tightest mb-6">
@@ -110,7 +114,7 @@ export default component$(() => {
         <div class="card p-8">
           {status.value === "verifying" && (
             <div class="text-center">
-              <div class="inline-block animate-spin h-12 w-12 border-2 border-black border-t-transparent mb-6"></div>
+              <div class="inline-block animate-spin h-12 w-12 border-2 border-black dark:border-white border-t-transparent dark:border-t-transparent mb-6"></div>
               <h2 class="text-2xl font-light tracking-tightest mb-4">
                 Verifying your email...
               </h2>
@@ -122,7 +126,7 @@ export default component$(() => {
 
           {status.value === "success" && (
             <div class="text-center">
-              <div class="inline-flex items-center justify-center w-16 h-16 border border-black mb-6">
+              <div class="inline-flex items-center justify-center w-16 h-16 border border-black dark:border-white mb-6">
                 <svg
                   class="w-8 h-8"
                   fill="none"
@@ -147,7 +151,7 @@ export default component$(() => {
 
           {status.value === "error" && (
             <div class="text-center">
-              <div class="inline-flex items-center justify-center w-16 h-16 border border-black mb-6">
+              <div class="inline-flex items-center justify-center w-16 h-16 border border-black dark:border-white mb-6">
                 <svg
                   class="w-8 h-8"
                   fill="none"

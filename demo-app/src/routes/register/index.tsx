@@ -14,6 +14,7 @@ import {
   type DocumentHead,
 } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
+import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
 
 // Register action - runs on server only
 export const useRegister = routeAction$(
@@ -87,7 +88,12 @@ export default component$(() => {
   });
 
   return (
-    <div class="min-h-screen bg-white flex items-center justify-center px-6 py-12">
+    <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-6 py-12 transition-colors duration-200">
+      {/* Dark mode toggle - fixed top right */}
+      <div class="fixed top-6 right-6">
+        <DarkModeToggle />
+      </div>
+
       <div class="w-full max-w-md">
         {/* Header */}
         <div class="mb-16">
@@ -99,14 +105,14 @@ export default component$(() => {
 
         {/* Error display */}
         {register.value?.failed && (
-          <div class="mb-8 pb-6 border-b border-black">
+          <div class="mb-8 pb-6 border-b border-black dark:border-white">
             <p class="text-sm">{register.value.message}</p>
           </div>
         )}
 
         {/* Success message */}
         {register.value?.success && (
-          <div class="mb-8 pb-6 border-b border-black">
+          <div class="mb-8 pb-6 border-b border-black dark:border-white">
             <h3 class="text-sm font-medium mb-2">Check your email</h3>
             <p class="text-sm opacity-60">
               We've sent a verification email. Please click the link to verify
@@ -227,7 +233,7 @@ export default component$(() => {
           </button>
         </Form>
 
-        <div class="mt-12 pt-12 border-t border-black flex items-center justify-center text-sm">
+        <div class="mt-12 pt-12 border-t border-black dark:border-white flex items-center justify-center text-sm">
           <span class="opacity-60 mr-2">Already have an account?</span>
           <a href="/">Sign in</a>
         </div>

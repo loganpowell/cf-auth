@@ -407,11 +407,484 @@
         "required": [
           "message"
         ]
+      },
+      "ChangePasswordResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Password changed successfully"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Current password",
+            "example": "OldP@ss123"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "description": "New password (min 8 characters)",
+            "example": "NewSecureP@ss123"
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "RoleAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "roleId",
+          "organizationId",
+          "teamId",
+          "grantedBy",
+          "expiresAt",
+          "createdAt"
+        ]
+      },
+      "GrantRoleResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Role granted successfully"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/RoleAssignment"
+          }
+        },
+        "required": [
+          "message",
+          "assignment"
+        ]
+      },
+      "GrantRoleRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User ID to grant role to",
+            "example": "user-123"
+          },
+          "roleId": {
+            "type": "string",
+            "description": "Role ID to grant",
+            "example": "role-456"
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Optional organization scope",
+            "example": "org-789"
+          },
+          "teamId": {
+            "type": "string",
+            "description": "Optional team scope",
+            "example": "team-101"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional expiration timestamp (ISO 8601)",
+            "example": "2025-12-31T23:59:59Z"
+          }
+        },
+        "required": [
+          "userId",
+          "roleId"
+        ]
+      },
+      "RevokeRoleResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Role revoked successfully"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "RevokeRoleRequest": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User ID to revoke role from",
+            "example": "user-123"
+          },
+          "roleId": {
+            "type": "string",
+            "description": "Role ID to revoke",
+            "example": "role-456"
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Optional organization scope",
+            "example": "org-789"
+          },
+          "teamId": {
+            "type": "string",
+            "description": "Optional team scope",
+            "example": "team-101"
+          }
+        },
+        "required": [
+          "userId",
+          "roleId"
+        ]
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permissionsLow": {
+            "type": "string"
+          },
+          "permissionsHigh": {
+            "type": "string"
+          },
+          "isSystem": {
+            "type": "boolean"
+          },
+          "organizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "permissionsLow",
+          "permissionsHigh",
+          "isSystem",
+          "organizationId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "RoleWithPermissions": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Role"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "permissionNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Human-readable permission names",
+                "example": [
+                  "org.read",
+                  "org.write",
+                  "team.read"
+                ]
+              }
+            },
+            "required": [
+              "permissionNames"
+            ]
+          }
+        ]
+      },
+      "CreateRoleResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Role created successfully"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleWithPermissions"
+          }
+        },
+        "required": [
+          "message",
+          "role"
+        ]
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "description": "Role name",
+            "example": "Content Manager"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Role description",
+            "example": "Can manage content and view analytics"
+          },
+          "permissionNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Array of permission names",
+            "example": [
+              "org.read",
+              "data.read",
+              "data.write",
+              "collab.issue.read"
+            ]
+          },
+          "organizationId": {
+            "type": "string",
+            "description": "Optional organization scope (null = global system role)",
+            "example": "org-789"
+          }
+        },
+        "required": [
+          "name",
+          "permissionNames"
+        ]
+      },
+      "ListRolesResponse": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleWithPermissions"
+            },
+            "description": "Array of roles with permission names"
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "GetRoleResponse": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/RoleWithPermissions"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "GetUserPermissionsResponse": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User ID",
+            "example": "user-123"
+          },
+          "isOwner": {
+            "type": "boolean",
+            "description": "Whether user is organization owner (has full superset)",
+            "example": false
+          },
+          "permissions": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "string",
+                "description": "Low 64 bits of permission bitmap",
+                "example": "127"
+              },
+              "high": {
+                "type": "string",
+                "description": "High 64 bits of permission bitmap",
+                "example": "0"
+              },
+              "names": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Human-readable permission names",
+                "example": [
+                  "org.read",
+                  "team.read",
+                  "data.read"
+                ]
+              }
+            },
+            "required": [
+              "low",
+              "high",
+              "names"
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "isOwner",
+          "permissions"
+        ]
+      },
+      "PermissionAudit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "revoke",
+              "role_create",
+              "role_update",
+              "role_delete"
+            ]
+          },
+          "actorUserId": {
+            "type": "string"
+          },
+          "targetUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roleId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "actorUserId",
+          "targetUserId",
+          "roleId",
+          "organizationId",
+          "teamId",
+          "metadata",
+          "createdAt"
+        ]
+      },
+      "GetAuditTrailResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionAudit"
+            },
+            "description": "Array of permission audit entries"
+          }
+        },
+        "required": [
+          "entries"
+        ]
       }
     },
     "parameters": {},
     "securitySchemes": {
-      "Bearer": {
+      "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
@@ -732,7 +1205,7 @@
         "description": "Get currently authenticated user information",
         "security": [
           {
-            "Bearer": []
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -832,7 +1305,7 @@
         "description": "Logout user and invalidate tokens",
         "security": [
           {
-            "Bearer": []
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -842,6 +1315,1302 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/change-password": {
+      "post": {
+        "operationId": "v1AuthChangePasswordPost",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Change password",
+        "description": "Change password for authenticated user (requires current password)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or current password incorrect",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List all users",
+        "description": "Get a list of all registered users (authenticated users only)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "user_abc123"
+                          },
+                          "email": {
+                            "type": "string",
+                            "format": "email",
+                            "example": "user@example.com"
+                          },
+                          "displayName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "example": "John Doe"
+                          },
+                          "emailVerified": {
+                            "type": "boolean",
+                            "example": true
+                          },
+                          "createdAt": {
+                            "type": "number",
+                            "example": 1702425600
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "suspended"
+                            ],
+                            "example": "active"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "email",
+                          "displayName",
+                          "emailVerified",
+                          "createdAt",
+                          "status"
+                        ]
+                      }
+                    },
+                    "count": {
+                      "type": "number",
+                      "example": 10
+                    }
+                  },
+                  "required": [
+                    "users",
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/permissions/grant": {
+      "post": {
+        "operationId": "v1PermissionsGrantPost",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Grant a role to a user",
+        "description": "Assign a role to a user with optional organization/team scope. Validates that the grantor has permission delegation rights (Permission Superset Model).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role granted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - validation failed or delegation not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - user cannot grant permissions they do not possess",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/permissions/revoke": {
+      "post": {
+        "operationId": "v1PermissionsRevokePost",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Revoke a role from a user",
+        "description": "Remove a role assignment from a user. Validates that the revoker has permission management rights.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role revoked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - user cannot revoke permissions they do not possess",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roles": {
+      "post": {
+        "operationId": "v1RolesPost",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Create a custom role",
+        "description": "Create a new role with custom permissions. Validates that creator can delegate all requested permissions (Permission Superset Model).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Role created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - user cannot create role with permissions they do not possess",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "v1RolesGet",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "List available roles",
+        "description": "Get all roles in a scope (global system roles or organization-specific roles)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by organization ID (omit for global system roles, or pass org ID for org-specific roles)",
+              "example": "org-789"
+            },
+            "required": false,
+            "description": "Filter by organization ID (omit for global system roles, or pass org ID for org-specific roles)",
+            "name": "organizationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRolesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roles/{roleId}": {
+      "get": {
+        "operationId": "v1RolesRoleIdGet",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Get role details",
+        "description": "Get detailed information about a specific role",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Role ID",
+              "example": "role-456"
+            },
+            "required": true,
+            "description": "Role ID",
+            "name": "roleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRoleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Role not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{userId}/permissions": {
+      "get": {
+        "operationId": "v1UsersUserIdPermissionsGet",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Get user's effective permissions",
+        "description": "Get all effective permissions for a user in a specific scope (org/team)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "User ID",
+              "example": "user-123"
+            },
+            "required": true,
+            "description": "User ID",
+            "name": "userId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional organization scope",
+              "example": "org-789"
+            },
+            "required": false,
+            "description": "Optional organization scope",
+            "name": "organizationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional team scope",
+              "example": "team-101"
+            },
+            "required": false,
+            "description": "Optional team scope",
+            "name": "teamId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User permissions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetUserPermissionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/permissions/audit": {
+      "get": {
+        "operationId": "v1PermissionsAuditGet",
+        "tags": [
+          "Permissions"
+        ],
+        "summary": "Get permission audit trail",
+        "description": "Query permission change history with optional filters for compliance and debugging",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by user ID (actor or target)",
+              "example": "user-123"
+            },
+            "required": false,
+            "description": "Filter by user ID (actor or target)",
+            "name": "userId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by role ID",
+              "example": "role-456"
+            },
+            "required": false,
+            "description": "Filter by role ID",
+            "name": "roleId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by organization ID",
+              "example": "org-789"
+            },
+            "required": false,
+            "description": "Filter by organization ID",
+            "name": "organizationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "grant",
+                "revoke",
+                "role_create",
+                "role_update",
+                "role_delete"
+              ],
+              "description": "Filter by action type",
+              "example": "grant"
+            },
+            "required": false,
+            "description": "Filter by action type",
+            "name": "action",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100,
+              "description": "Maximum number of entries to return",
+              "example": 100
+            },
+            "required": false,
+            "description": "Maximum number of entries to return",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit trail retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAuditTrailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - insufficient permissions to view audit trail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "properties": {
+                        "error": {
+                          "type": "string",
+                          "description": "Error message",
+                          "example": "Validation failed"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Detailed error message",
+                          "example": "You cannot grant permissions you do not possess"
+                        },
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string",
+                                "example": "permissions"
+                              },
+                              "message": {
+                                "type": "string",
+                                "example": "Missing required permission: org.write"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "message"
+                            ]
+                          },
+                          "description": "Validation error details"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }

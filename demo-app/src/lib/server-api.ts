@@ -238,35 +238,211 @@ export const serverApi = {
 
   /**
    * Change password (requires auth token)
-   * NOTE: This endpoint is not yet migrated to OpenAPI (Phase 3.5)
-   * Uses manual fetch until SDK types are generated
    */
   async changePassword(
     accessToken: string,
     currentPassword: string,
     newPassword: string
   ) {
-    const apiUrl = getApiUrl();
-    const response = await fetch(`${apiUrl}/v1/auth/change-password`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
+    const client = createServerApiClient(accessToken);
+    const response = await client.POST("/v1/auth/change-password", {
+      body: {
         currentPassword,
         newPassword,
-      }),
+      },
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(
-        error.error || error.message || "Failed to change password"
-      );
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to change password";
+      throw new Error(errorMsg);
     }
 
-    const data = await response.json();
-    return data;
+    return response.data;
+  },
+
+  /**
+   * List all roles (requires auth token)
+   */
+  async listRoles(accessToken: string) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.GET("/v1/roles");
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to fetch roles";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Get user permissions (requires auth token)
+   */
+  async getUserPermissions(accessToken: string, userId: string) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.GET("/v1/users/{userId}/permissions", {
+      params: {
+        path: { userId },
+      },
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to fetch user permissions";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Grant role to user (requires auth token)
+   */
+  async grantRole(
+    accessToken: string,
+    data: { userId: string; roleId: string }
+  ) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.POST("/v1/permissions/grant", {
+      body: data,
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to grant role";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Create custom role (requires auth token)
+   */
+  async createRole(
+    accessToken: string,
+    data: {
+      name: string;
+      description?: string;
+      permissionNames: string[];
+    }
+  ) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.POST("/v1/roles", {
+      body: data,
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to create role";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Revoke role from user (requires auth token)
+   */
+  async revokeRole(
+    accessToken: string,
+    data: { userId: string; roleId: string }
+  ) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.POST("/v1/permissions/revoke", {
+      body: data,
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to revoke role";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Get role details (requires auth token)
+   */
+  async getRole(accessToken: string, roleId: string) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.GET("/v1/roles/{roleId}", {
+      params: {
+        path: { roleId },
+      },
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to get role";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * Get permission audit trail (requires auth token)
+   */
+  async getAuditTrail(
+    accessToken: string,
+    params?: {
+      userId?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.GET("/v1/permissions/audit", {
+      params: {
+        query: params,
+      },
+    });
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to fetch audit trail";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
+  },
+
+  /**
+   * List all users (requires auth token)
+   * Used for user selection in permissions dashboard
+   */
+  async listUsers(accessToken: string) {
+    const client = createServerApiClient(accessToken);
+    const response = await client.GET("/v1/users", {});
+
+    if (response.error || !response.data) {
+      const errorMsg =
+        response.error?.error ||
+        response.error?.message ||
+        "Failed to list users";
+      throw new Error(errorMsg);
+    }
+
+    return response.data;
   },
 };

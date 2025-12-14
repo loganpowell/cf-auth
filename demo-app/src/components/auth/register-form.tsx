@@ -132,9 +132,9 @@ export const RegisterForm = component$(() => {
   return (
     <form
       onSubmit$={handleSubmit}
-      class="w-full max-w-md mx-auto bg-white rounded-lg shadow-md p-8"
+      class="w-full max-w-md mx-auto bg-white dark:bg-black border border-black dark:border-white rounded-lg shadow-md p-8"
     >
-      <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">
+      <h2 class="text-2xl font-bold mb-6 text-center text-black dark:text-white">
         Create Account
       </h2>
 
@@ -152,7 +152,7 @@ export const RegisterForm = component$(() => {
       <div class="mb-4">
         <label
           for="displayName"
-          class="block text-sm font-medium text-gray-700 mb-2"
+          class="block text-sm font-medium text-black dark:text-white mb-2"
         >
           Display Name
         </label>
@@ -167,14 +167,17 @@ export const RegisterForm = component$(() => {
           required
           disabled={isSubmitting.value}
           maxLength={100}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          class="w-full px-3 py-2 border border-black dark:border-white bg-white dark:bg-black text-black dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
           placeholder="John Doe"
         />
       </div>
 
       {/* Email Field */}
       <div class="mb-4">
-        <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+        <label
+          for="email"
+          class="block text-sm font-medium text-black dark:text-white mb-2"
+        >
           Email Address
         </label>
         <input
@@ -185,7 +188,7 @@ export const RegisterForm = component$(() => {
           onInput$={(e) => (email.value = (e.target as HTMLInputElement).value)}
           required
           disabled={isSubmitting.value}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          class="w-full px-3 py-2 border border-black dark:border-white bg-white dark:bg-black text-black dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
           placeholder="you@example.com"
         />
       </div>
@@ -194,7 +197,7 @@ export const RegisterForm = component$(() => {
       <div class="mb-4">
         <label
           for="password"
-          class="block text-sm font-medium text-gray-700 mb-2"
+          class="block text-sm font-medium text-black dark:text-white mb-2"
         >
           Password
         </label>
@@ -208,7 +211,7 @@ export const RegisterForm = component$(() => {
           }
           required
           disabled={isSubmitting.value}
-          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          class="w-full px-3 py-2 border border-black dark:border-white bg-white dark:bg-black text-black dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
           placeholder="••••••••"
         />
         {/* Password Strength Indicator */}
@@ -221,17 +224,17 @@ export const RegisterForm = component$(() => {
                   class={`h-1 flex-1 rounded ${
                     i < passwordStrength.value.strength
                       ? passwordStrength.value.color
-                      : "bg-gray-200"
+                      : "bg-white dark:bg-black border border-black dark:border-white"
                   }`}
                 />
               ))}
             </div>
-            <p class="text-xs text-gray-600">
+            <p class="text-xs text-black dark:text-white opacity-70">
               Password strength: {passwordStrength.value.label}
             </p>
           </div>
         )}
-        <p class="mt-2 text-xs text-gray-500">
+        <p class="mt-2 text-xs text-black dark:text-white opacity-50">
           Must be at least 8 characters with uppercase, lowercase, number, and
           special character
         </p>
@@ -247,7 +250,7 @@ export const RegisterForm = component$(() => {
       </button>
 
       {/* Footer Links */}
-      <div class="mt-6 text-center text-sm text-gray-600">
+      <div class="mt-6 text-center text-sm text-black dark:text-white opacity-70">
         <p>
           Already have an account?{" "}
           <a href="/" class="text-blue-600 hover:text-blue-700 font-medium">

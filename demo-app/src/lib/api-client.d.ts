@@ -184,6 +184,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change password
+         * @description Change password for authenticated user (requires current password)
+         */
+        post: operations["v1AuthChangePasswordPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all users
+         * @description Get a list of all registered users (authenticated users only)
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of users */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            users: {
+                                /** @example user_abc123 */
+                                id: string;
+                                /**
+                                 * Format: email
+                                 * @example user@example.com
+                                 */
+                                email: string;
+                                /** @example John Doe */
+                                displayName: string | null;
+                                /** @example true */
+                                emailVerified: boolean;
+                                /** @example 1702425600 */
+                                createdAt: number;
+                                /**
+                                 * @example active
+                                 * @enum {string}
+                                 */
+                                status: "active" | "suspended";
+                            }[];
+                            /** @example 10 */
+                            count: number;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/grant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a role to a user
+         * @description Assign a role to a user with optional organization/team scope. Validates that the grantor has permission delegation rights (Permission Superset Model).
+         */
+        post: operations["v1PermissionsGrantPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a role from a user
+         * @description Remove a role assignment from a user. Validates that the revoker has permission management rights.
+         */
+        post: operations["v1PermissionsRevokePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List available roles
+         * @description Get all roles in a scope (global system roles or organization-specific roles)
+         */
+        get: operations["v1RolesGet"];
+        put?: never;
+        /**
+         * Create a custom role
+         * @description Create a new role with custom permissions. Validates that creator can delegate all requested permissions (Permission Superset Model).
+         */
+        post: operations["v1RolesPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/roles/{roleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get role details
+         * @description Get detailed information about a specific role
+         */
+        get: operations["v1RolesRoleIdGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{userId}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get user's effective permissions
+         * @description Get all effective permissions for a user in a specific scope (org/team)
+         */
+        get: operations["v1UsersUserIdPermissionsGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get permission audit trail
+         * @description Query permission change history with optional filters for compliance and debugging
+         */
+        get: operations["v1PermissionsAuditGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -368,6 +592,218 @@ export interface components {
              * @example Logged out successfully
              */
             message: string;
+        };
+        ChangePasswordResponse: {
+            /**
+             * @description Success message
+             * @example Password changed successfully
+             */
+            message: string;
+        };
+        ChangePasswordRequest: {
+            /**
+             * @description Current password
+             * @example OldP@ss123
+             */
+            currentPassword: string;
+            /**
+             * @description New password (min 8 characters)
+             * @example NewSecureP@ss123
+             */
+            newPassword: string;
+        };
+        RoleAssignment: {
+            id: string;
+            userId: string;
+            roleId: string;
+            organizationId: string | null;
+            teamId: string | null;
+            grantedBy: string;
+            /** Format: date */
+            expiresAt: string | null;
+            /** Format: date */
+            createdAt: string;
+        };
+        GrantRoleResponse: {
+            /**
+             * @description Success message
+             * @example Role granted successfully
+             */
+            message: string;
+            assignment: components["schemas"]["RoleAssignment"];
+        };
+        GrantRoleRequest: {
+            /**
+             * @description User ID to grant role to
+             * @example user-123
+             */
+            userId: string;
+            /**
+             * @description Role ID to grant
+             * @example role-456
+             */
+            roleId: string;
+            /**
+             * @description Optional organization scope
+             * @example org-789
+             */
+            organizationId?: string;
+            /**
+             * @description Optional team scope
+             * @example team-101
+             */
+            teamId?: string;
+            /**
+             * Format: date-time
+             * @description Optional expiration timestamp (ISO 8601)
+             * @example 2025-12-31T23:59:59Z
+             */
+            expiresAt?: string;
+        };
+        RevokeRoleResponse: {
+            /**
+             * @description Success message
+             * @example Role revoked successfully
+             */
+            message: string;
+        };
+        RevokeRoleRequest: {
+            /**
+             * @description User ID to revoke role from
+             * @example user-123
+             */
+            userId: string;
+            /**
+             * @description Role ID to revoke
+             * @example role-456
+             */
+            roleId: string;
+            /**
+             * @description Optional organization scope
+             * @example org-789
+             */
+            organizationId?: string;
+            /**
+             * @description Optional team scope
+             * @example team-101
+             */
+            teamId?: string;
+        };
+        Role: {
+            id: string;
+            name: string;
+            description: string | null;
+            permissionsLow: string;
+            permissionsHigh: string;
+            isSystem: boolean;
+            organizationId: string | null;
+            /** Format: date */
+            createdAt: string;
+            /** Format: date */
+            updatedAt: string;
+        };
+        RoleWithPermissions: components["schemas"]["Role"] & {
+            /**
+             * @description Human-readable permission names
+             * @example [
+             *       "org.read",
+             *       "org.write",
+             *       "team.read"
+             *     ]
+             */
+            permissionNames: string[];
+        };
+        CreateRoleResponse: {
+            /**
+             * @description Success message
+             * @example Role created successfully
+             */
+            message: string;
+            role: components["schemas"]["RoleWithPermissions"];
+        };
+        CreateRoleRequest: {
+            /**
+             * @description Role name
+             * @example Content Manager
+             */
+            name: string;
+            /**
+             * @description Role description
+             * @example Can manage content and view analytics
+             */
+            description?: string;
+            /**
+             * @description Array of permission names
+             * @example [
+             *       "org.read",
+             *       "data.read",
+             *       "data.write",
+             *       "collab.issue.read"
+             *     ]
+             */
+            permissionNames: string[];
+            /**
+             * @description Optional organization scope (null = global system role)
+             * @example org-789
+             */
+            organizationId?: string;
+        };
+        ListRolesResponse: {
+            /** @description Array of roles with permission names */
+            roles: components["schemas"]["RoleWithPermissions"][];
+        };
+        GetRoleResponse: {
+            role: components["schemas"]["RoleWithPermissions"];
+        };
+        GetUserPermissionsResponse: {
+            /**
+             * @description User ID
+             * @example user-123
+             */
+            userId: string;
+            /**
+             * @description Whether user is organization owner (has full superset)
+             * @example false
+             */
+            isOwner: boolean;
+            permissions: {
+                /**
+                 * @description Low 64 bits of permission bitmap
+                 * @example 127
+                 */
+                low: string;
+                /**
+                 * @description High 64 bits of permission bitmap
+                 * @example 0
+                 */
+                high: string;
+                /**
+                 * @description Human-readable permission names
+                 * @example [
+                 *       "org.read",
+                 *       "team.read",
+                 *       "data.read"
+                 *     ]
+                 */
+                names: string[];
+            };
+        };
+        PermissionAudit: {
+            id: string;
+            /** @enum {string} */
+            action: "grant" | "revoke" | "role_create" | "role_update" | "role_delete";
+            actorUserId: string;
+            targetUserId: string | null;
+            roleId: string | null;
+            organizationId: string | null;
+            teamId: string | null;
+            metadata: string | null;
+            /** Format: date */
+            createdAt: string;
+        };
+        GetAuditTrailResponse: {
+            /** @description Array of permission audit entries */
+            entries: components["schemas"]["PermissionAudit"][];
         };
     };
     responses: never;
@@ -722,6 +1158,666 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+        };
+    };
+    v1AuthChangePasswordPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePasswordResponse"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized or current password incorrect */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    v1PermissionsGrantPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GrantRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role granted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantRoleResponse"];
+                };
+            };
+            /** @description Bad request - validation failed or delegation not allowed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Forbidden - user cannot grant permissions they do not possess */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1PermissionsRevokePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RevokeRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role revoked successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokeRoleResponse"];
+                };
+            };
+            /** @description Bad request - validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Forbidden - user cannot revoke permissions they do not possess */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1RolesGet: {
+        parameters: {
+            query?: {
+                /** @description Filter by organization ID (omit for global system roles, or pass org ID for org-specific roles) */
+                organizationId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Roles retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRolesResponse"];
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1RolesPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Role created successfully */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateRoleResponse"];
+                };
+            };
+            /** @description Bad request - validation failed */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Forbidden - user cannot create role with permissions they do not possess */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1RolesRoleIdGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Role ID */
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetRoleResponse"];
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Role not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1UsersUserIdPermissionsGet: {
+        parameters: {
+            query?: {
+                /** @description Optional organization scope */
+                organizationId?: string;
+                /** @description Optional team scope */
+                teamId?: string;
+            };
+            header?: never;
+            path: {
+                /** @description User ID */
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User permissions retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetUserPermissionsResponse"];
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    v1PermissionsAuditGet: {
+        parameters: {
+            query?: {
+                /** @description Filter by user ID (actor or target) */
+                userId?: string;
+                /** @description Filter by role ID */
+                roleId?: string;
+                /** @description Filter by organization ID */
+                organizationId?: string;
+                /** @description Filter by action type */
+                action?: "grant" | "revoke" | "role_create" | "role_update" | "role_delete";
+                /** @description Maximum number of entries to return */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit trail retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetAuditTrailResponse"];
+                };
+            };
+            /** @description Unauthorized - missing or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Forbidden - insufficient permissions to view audit trail */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        /**
+                         * @description Error message
+                         * @example Validation failed
+                         */
+                        error?: string;
+                        /**
+                         * @description Detailed error message
+                         * @example You cannot grant permissions you do not possess
+                         */
+                        message?: string;
+                        /** @description Validation error details */
+                        details?: {
+                            /** @example permissions */
+                            field: string;
+                            /** @example Missing required permission: org.write */
+                            message: string;
+                        }[];
+                    };
                 };
             };
         };

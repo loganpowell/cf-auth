@@ -2,10 +2,21 @@
  * API Client for Authentication Service
  *
  * Provides type-safe API calls to the backend auth service.
- * Uses server$ for secure server-side API calls.
+ * Uses openapi-fetch for type-safe API calls.
+ *
+ * @deprecated This file is being phased out in favor of server-api.ts
+ * which uses openapi-fetch with full type safety from the OpenAPI spec.
+ *
+ * Migration guide:
+ * - Use serverApi.login() instead of login$()
+ * - Use serverApi.register() instead of register$()
+ * - Use serverApi.getMe() instead of getCurrentUser$()
+ * - Use serverApi.logout() instead of logout$()
+ * - Use serverApi.refresh() instead of refreshToken$()
  */
 
 import { server$ } from "@qwik.dev/router";
+import { serverApi } from "./server-api";
 import type {
   User,
   LoginCredentials,
@@ -51,122 +62,91 @@ export const API_CONFIG = {
 
 /**
  * Login user with credentials
+ * @deprecated Use serverApi.login() instead for better type safety
  */
 export const login$ = server$(
   async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await fetch(`${API_BASE_URL}/v1/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(credentials),
-      credentials: "include", // Include cookies for refresh token
-    });
-
-    if (!response.ok) {
-      const error: ApiErrorResponse = await response.json();
-      throw new ApiError(error.error || "Login failed", response.status, error);
+    try {
+      const result = await serverApi.login(credentials);
+      return result as unknown as AuthResponse;
+    } catch (error) {
+      throw new ApiError(
+        error instanceof Error ? error.message : "Login failed",
+        400
+      );
     }
-
-    return response.json();
   }
 );
 
 /**
  * Register new user
+ * @deprecated Use serverApi.register() instead for better type safety
  */
 export const register$ = server$(
   async (data: RegisterData): Promise<AuthResponse> => {
-    const response = await fetch(`${API_BASE_URL}/v1/auth/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-      credentials: "include", // Include cookies for refresh token
-    });
-
-    if (!response.ok) {
-      const error: ApiErrorResponse = await response.json();
+    try {
+      const result = await serverApi.register(data);
+      return result as unknown as AuthResponse;
+    } catch (error) {
       throw new ApiError(
-        error.error || "Registration failed",
-        response.status,
-        error
+        error instanceof Error ? error.message : "Registration failed",
+        400
       );
     }
-
-    return response.json();
   }
 );
 
 /**
  * Get current user info
+ * @deprecated Use serverApi.getMe() instead for better type safety
  */
 export const getCurrentUser$ = server$(
   async (accessToken: string): Promise<{ user: User }> => {
-    const response = await fetch(`${API_BASE_URL}/v1/auth/me`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      const error: ApiErrorResponse = await response.json();
+    try {
+      const result = await serverApi.getMe(accessToken);
+      return result as unknown as { user: User };
+    } catch (error) {
       throw new ApiError(
-        error.error || "Failed to get user",
-        response.status,
-        error
+        error instanceof Error ? error.message : "Failed to get user",
+        400
       );
     }
-
-    return response.json();
   }
 );
 
 /**
  * Logout user
+ * @deprecated Use serverApi.logout() instead for better type safety
  */
 export const logout$ = server$(async (accessToken?: string): Promise<void> => {
-  const headers: Record<string, string> = {};
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
+  if (!accessToken) {
+    throw new ApiError("Access token required", 401);
   }
-
-  const response = await fetch(`${API_BASE_URL}/v1/auth/logout`, {
-    method: "POST",
-    headers,
-    credentials: "include", // Include cookies to clear refresh token
-  });
-
-  if (!response.ok) {
-    const error: ApiErrorResponse = await response.json();
-    throw new ApiError(error.error || "Logout failed", response.status, error);
+  try {
+    await serverApi.logout(accessToken);
+  } catch (error) {
+    throw new ApiError(
+      error instanceof Error ? error.message : "Logout failed",
+      400
+    );
   }
 });
 
 /**
  * Refresh access token
+ * @deprecated Use serverApi.refresh() instead for better type safety
  */
 export const refreshToken$ = server$(
   async (): Promise<{
     accessToken: string;
   }> => {
-    const response = await fetch(`${API_BASE_URL}/v1/auth/refresh`, {
-      method: "POST",
-      credentials: "include", // Send refresh token cookie
-    });
-
-    if (!response.ok) {
-      const error: ApiErrorResponse = await response.json();
+    try {
+      return await serverApi.refresh();
+    } catch (error) {
       throw new ApiError(
-        error.error || "Token refresh failed",
-        response.status,
-        error
+        error instanceof Error ? error.message : "Token refresh failed",
+        400
       );
     }
-
-    return response.json();
   }
 );

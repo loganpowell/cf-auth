@@ -173,6 +173,13 @@ pnpm run deploy
 
 ### Generate OpenAPI Spec & SDK
 
+1. Drizzle schema (schema.ts) →
+2. drizzle-zod generates Zod schemas →
+3. Zod schemas (db-schemas.ts) →
+4. OpenAPI routes (auth.schema.ts) →
+5. OpenAPI JSON (openapi.json) →
+6. TypeScript SDK types (api-client.d.ts)
+
 After modifying API schemas or routes, regenerate the OpenAPI spec and TypeScript SDK for the demo app:
 
 ```bash

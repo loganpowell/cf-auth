@@ -19,6 +19,7 @@ import {
 } from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
 import { ToastContextId } from "~/contexts/toast-context";
+import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
 
 // Server action for password reset request
 export const useForgotPasswordAction = routeAction$(
@@ -61,7 +62,12 @@ export default component$(() => {
   });
 
   return (
-    <div class="min-h-screen bg-white flex items-center justify-center px-6">
+    <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-6 transition-colors duration-200">
+      {/* Dark mode toggle - fixed top right */}
+      <div class="fixed top-6 right-6">
+        <DarkModeToggle />
+      </div>
+
       <div class="w-full max-w-md">
         <div class="mb-16">
           <h1 class="text-6xl font-light tracking-tightest mb-6">

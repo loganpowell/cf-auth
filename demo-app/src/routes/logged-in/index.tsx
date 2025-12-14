@@ -7,6 +7,7 @@
 
 import { component$ } from "@qwik.dev/core";
 import { routeLoader$, type DocumentHead } from "@qwik.dev/router";
+import { DarkModeToggle } from "../../components/ui/dark-mode-toggle";
 
 // Loader to check authentication and get cookies
 export const useAuthCheck = routeLoader$(async ({ cookie, redirect }) => {
@@ -30,77 +31,66 @@ export default component$(() => {
   const authData = useAuthCheck();
 
   return (
-    <div class="min-h-screen bg-linear-to-br from-green-50 to-blue-100 flex items-center justify-center px-4">
+    <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-4 transition-colors duration-200">
+      {/* Dark mode toggle - fixed top right */}
+      <div class="fixed top-6 right-6">
+        <DarkModeToggle />
+      </div>
+
       <div class="w-full max-w-2xl">
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-          <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-              <svg
-                class="w-8 h-8 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">✅ Logged In!</h1>
-            <p class="text-gray-600">You are successfully authenticated</p>
+        <div class="card p-12">
+          {/* Header */}
+          <div class="text-center mb-12">
+            <h1 class="text-6xl font-light tracking-tightest mb-4">
+              Logged In
+            </h1>
+            <p class="text-lg opacity-60">You are successfully authenticated</p>
           </div>
 
-          <div class="space-y-4 mb-8">
-            <div class="bg-gray-50 rounded-lg p-4">
-              <h3 class="text-sm font-semibold text-gray-700 mb-2">
+          {/* Auth Status */}
+          <div class="space-y-6 mb-12">
+            <div>
+              <h3 class="text-sm font-medium uppercase tracking-wider opacity-60 mb-4">
                 Authentication Status
               </h3>
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm text-gray-600">Refresh Token:</span>
-                  <span class="text-sm font-mono text-green-600">
-                    {authData.value.hasRefreshToken ? "✓ Present" : "✗ Missing"}
+              <div class="space-y-3">
+                <div class="flex items-center justify-between py-2 border-b border-current">
+                  <span class="text-sm">Refresh Token</span>
+                  <span class="text-sm font-mono">
+                    {authData.value.hasRefreshToken ? "✓" : "✗"}{" "}
                     {authData.value.hasRefreshToken &&
-                      ` (${authData.value.refreshTokenLength} chars)`}
+                      `${authData.value.refreshTokenLength} chars`}
                   </span>
                 </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm text-gray-600">Access Token:</span>
-                  <span class="text-sm font-mono text-green-600">
-                    {authData.value.hasAccessToken ? "✓ Present" : "✗ Missing"}
+                <div class="flex items-center justify-between py-2 border-b border-current">
+                  <span class="text-sm">Access Token</span>
+                  <span class="text-sm font-mono">
+                    {authData.value.hasAccessToken ? "✓" : "✗"}{" "}
                     {authData.value.hasAccessToken &&
-                      ` (${authData.value.accessTokenLength} chars)`}
+                      `${authData.value.accessTokenLength} chars`}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div class="bg-blue-50 rounded-lg p-4">
-              <h3 class="text-sm font-semibold text-blue-900 mb-2">
-                ℹ️ What This Means
+            <div class="pt-6">
+              <h3 class="text-sm font-medium uppercase tracking-wider opacity-60 mb-3">
+                What This Means
               </h3>
-              <p class="text-sm text-blue-800">
-                Your login was successful! The server set authentication
+              <p class="text-sm leading-relaxed opacity-80">
+                Your login was successful. The server set authentication
                 cookies, and you were redirected to this page. This confirms the
                 entire authentication flow is working correctly.
               </p>
             </div>
           </div>
 
-          <div class="flex gap-4">
-            <a
-              href="/dashboard"
-              class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center"
-            >
-              Go to Dashboard
+          {/* Actions */}
+          <div class="grid grid-cols-2 gap-4">
+            <a href="/dashboard" class="btn text-center">
+              Dashboard
             </a>
-            <a
-              href="/"
-              class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors text-center"
-            >
+            <a href="/" class="btn btn-secondary text-center">
               Back to Login
             </a>
           </div>

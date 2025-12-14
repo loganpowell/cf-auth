@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1765665200296,
-      "tag": "0000_safe_luke_cage",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1765672283501,
-      "tag": "0001_modern_jazinda",
+      "when": 1765697954177,
+      "tag": "0000_fearless_kree",
       "breakpoints": true
     }
   ]

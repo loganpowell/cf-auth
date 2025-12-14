@@ -494,7 +494,7 @@ export const getMeRoute = createRoute({
   description: "Get currently authenticated user information",
   security: [
     {
-      Bearer: [],
+      bearerAuth: [],
     },
   ],
   responses: {
@@ -605,7 +605,7 @@ export const logoutRoute = createRoute({
   description: "Logout user and invalidate tokens",
   security: [
     {
-      Bearer: [],
+      bearerAuth: [],
     },
   ],
   responses: {
@@ -616,6 +616,90 @@ export const logoutRoute = createRoute({
         },
       },
       description: "Successfully logged out",
+    },
+  },
+});
+
+// ============================================================================
+// Change Password Endpoint
+// ============================================================================
+
+export const ChangePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1).openapi({
+      description: "Current password",
+      example: "OldP@ss123",
+    }),
+    newPassword: z.string().min(8).openapi({
+      description: "New password (min 8 characters)",
+      example: "NewSecureP@ss123",
+    }),
+  })
+  .openapi("ChangePasswordRequest");
+
+export const ChangePasswordResponseSchema = z
+  .object({
+    message: z.string().openapi({
+      description: "Success message",
+      example: "Password changed successfully",
+    }),
+  })
+  .openapi("ChangePasswordResponse");
+
+export const changePasswordRoute = createRoute({
+  operationId: "v1AuthChangePasswordPost",
+  method: "post",
+  path: "/v1/auth/change-password",
+  tags: ["Authentication"],
+  summary: "Change password",
+  description:
+    "Change password for authenticated user (requires current password)",
+  security: [
+    {
+      bearerAuth: [],
+    },
+  ],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ChangePasswordRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ChangePasswordResponseSchema,
+        },
+      },
+      description: "Password changed successfully",
+    },
+    401: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Unauthorized or current password incorrect",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Validation error",
+    },
+    500: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Internal server error",
     },
   },
 });
@@ -637,6 +721,7 @@ export type ResendVerificationRequest = z.infer<
 >;
 export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
 export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
 
 // Response Types
 export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
@@ -649,6 +734,64 @@ export type ForgotPasswordResponse = z.infer<
   typeof ForgotPasswordResponseSchema
 >;
 export type ResetPasswordResponse = z.infer<typeof ResetPasswordResponseSchema>;
+export type ChangePasswordResponse = z.infer<
+  typeof ChangePasswordResponseSchema
+>;
 export type GetMeResponse = z.infer<typeof GetMeResponseSchema>;
 export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
 export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;
+
+// ============================================================================
+// List Users Route (Helper for permissions dashboard)
+// ============================================================================
+
+const UserListItemSchema = z.object({
+  id: z.string().openapi({ example: "user_abc123" }),
+  email: z.string().email().openapi({ example: "user@example.com" }),
+  displayName: z.string().nullable().openapi({ example: "John Doe" }),
+  emailVerified: z.boolean().openapi({ example: true }),
+  createdAt: z.number().openapi({ example: 1702425600 }),
+  status: z.enum(["active", "suspended"]).openapi({ example: "active" }),
+});
+
+const ListUsersResponseSchema = z.object({
+  users: z.array(UserListItemSchema),
+  count: z.number().openapi({ example: 10 }),
+});
+
+export const listUsersRoute = createRoute({
+  method: "get",
+  path: "/v1/users",
+  tags: ["Users"],
+  summary: "List all users",
+  description: "Get a list of all registered users (authenticated users only)",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "List of users",
+      content: {
+        "application/json": {
+          schema: ListUsersResponseSchema,
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Server error",
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+export type ListUsersResponse = z.infer<typeof ListUsersResponseSchema>;

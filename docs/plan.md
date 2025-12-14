@@ -1814,30 +1814,189 @@ const authRoute = new cloudflare.WorkerRoute("auth-route", {
 
 ### Phase 4: Permission System
 
-**Backend:**
+**Architecture Note**: Following DRY schema generation pattern:
 
-- [ ] Seed database with base permissions and system roles
-- [ ] Implement permission bitmap operations
-- [ ] Implement PermissionService (checking, delegation validation)
-- [ ] Create permission middleware for authorization
-- [ ] Implement permission granting with delegation validation (OpenAPI routes)
-- [ ] Custom role creation endpoints (OpenAPI routes)
-- [ ] Permission audit trail and logging
+```
+Drizzle Schema → drizzle-zod → Zod Schemas → OpenAPI Routes → openapi.json → TypeScript SDK
+```
+
+**Status**: 🔄 In Progress (Backend complete, UI in progress, database migration pending)
+
+**Database Schema (Drizzle):**
+
+- [x] Define `roles` table with permission bitmap storage (permissionsLow/High)
+- [x] Define `roleAssignments` table for user-to-role mappings with org/team scope
+- [x] Define `permissionAudit` table for tracking permission changes
+- [x] Run migration to create permission tables in D1
+  - ✅ Deleted old database (minimal test data)
+  - ✅ Generated fresh migration: `0000_tidy_maverick.sql` (11 tables, 44 commands)
+  - ✅ Applied to local database with all permission tables
+  - ✅ Verified: roles, role_assignments, permission_audit tables created
+
+**Backend - Core Permission Logic:**
+
+- [x] Create permission constants (`src/utils/permissions.ts`)
+  - ✅ Defined **79 unique permissions** across 6 domains (Organization, Team, Repository, Data, Collaboration, Admin)
+  - ✅ Organized into logical bit ranges (0-19: org, 20-29: team, 30-39: repo, 40-49: data, 50-59: collab, 60-79: admin/perm)
+  - ✅ Documented permission hierarchy with PERMISSION_METADATA array
+  - ✅ Created preset roles: FULL_SUPERSET, ROLE_ADMIN, ROLE_MEMBER, ROLE_BILLING_MANAGER
+- [x] Implement bitmap helper functions (`src/utils/permissions.ts`)
+  - ✅ `hasPermission(bitmap: bigint, permission: bigint): boolean`
+  - ✅ `grantPermission(bitmap: bigint, permission: bigint): bigint`
+  - ✅ `revokePermission(bitmap: bigint, permission: bigint): bigint`
+  - ✅ `canDelegate(grantorBitmap: bigint, targetBitmap: bigint): boolean`
+  - ✅ `splitBitmap(bitmap: bigint): { low: string, high: string }`
+  - ✅ `mergeBitmap(low: string, high: string): bigint`
+  - ✅ Additional helpers: `hasAllPermissions`, `hasAnyPermission`, `getDelegatablePermissions`, `permissionNamesToBitmap`
+- [x] Create PermissionService (`src/services/permission.service.ts`)
+  - ✅ `checkUserPermission(userId, permission, env, orgId?, teamId?): Promise<boolean>`
+  - ✅ `getUserPermissions(userId, env, orgId?, teamId?): Promise<EffectivePermissions>`
+  - ✅ `validateDelegation(grantorId, targetPermissions, env, orgId?, teamId?): Promise<boolean>`
+  - ✅ `assignRole(data, env): Promise<RoleAssignment>` - with delegation validation
+  - ✅ `revokeRole(data, env): Promise<void>` - with permission checking
+  - ✅ `createCustomRole(data, env): Promise<RoleWithPermissions>` - with subset validation
+  - ✅ `getRoles(env, orgId?): Promise<RoleWithPermissions[]>`
+  - ✅ `getRoleById(roleId, env): Promise<RoleWithPermissions | null>`
+  - ✅ `getPermissionAuditTrail(filters, env, limit?): Promise<PermissionAudit[]>`
+  - ✅ `cleanupExpiredAssignments(env): Promise<number>` - for cron jobs
+  - ✅ Organization owners automatically receive FULL_SUPERSET
+- [x] Create authorization middleware (`src/middleware/authorize.ts`)
+  - ✅ `requireAuth()` - JWT verification middleware
+  - ✅ `requirePermission(...permissions)` - Permission checking middleware factory
+  - ✅ `requireAnyPermission(...permissions)` - OR-based permission checking
+  - ✅ `getUserIdFromContext()` - Extract authenticated user ID
+  - ✅ Supports org/team-scoped permission checks via query params or request body
+
+**Backend - API Layer (Zod → OpenAPI → SDK):**
+
+- [x] Create Zod schemas for permission endpoints (`src/schemas/permission.schema.ts`)
+  - ✅ Auto-generated role schemas from Drizzle using drizzle-zod in `db-schemas.ts`
+  - ✅ RoleSchema, RoleWithPermissionsSchema, RoleAssignmentSchema, PermissionAuditSchema
+  - ✅ Added permission schemas to `db-schemas.ts` exports
+- [x] Define OpenAPI routes in permission.schema.ts
+  - ✅ `POST /v1/permissions/grant` - Grant role to user (with delegation validation)
+  - ✅ `POST /v1/permissions/revoke` - Revoke role from user
+  - ✅ `POST /v1/roles` - Create custom role
+  - ✅ `GET /v1/roles` - List available roles (filter by org or global)
+  - ✅ `GET /v1/roles/{roleId}` - Get role details with permissions
+  - ✅ `GET /v1/users/{userId}/permissions` - Get user's effective permissions
+  - ✅ `GET /v1/permissions/audit` - Query permission audit trail
+  - ✅ All routes include request/response schemas with examples
+  - ✅ Error responses defined (400, 401, 403, 404)
+- [x] Implement permission handlers (`src/handlers/permissions/`)
+  - ✅ `handleGrantRole` - Grant role with PERM_GRANT permission check
+  - ✅ `handleRevokeRole` - Revoke role with PERM_REVOKE permission check
+  - ✅ `handleCreateRole` - Create custom role with PERM_ROLE_CREATE permission check
+  - ✅ `handleListRoles` - List roles (authentication required)
+  - ✅ `handleGetRole` - Get role by ID (authentication required)
+  - ✅ `handleGetUserPermissions` - Get user's effective permissions (authentication required)
+  - ✅ `handleGetAuditTrail` - Query audit trail (authentication required)
+  - ✅ All handlers include JWT authentication
+  - ✅ Permission checks integrated inline (not as middleware)
+  - ✅ Delegation validation handled by PermissionService
+- [x] Add permission routes to main router (`src/index.ts`)
+  - ✅ Registered all 7 permission routes with OpenAPI
+  - ✅ Updated API version to 0.4.0 (Phase 4 - Permission System)
+- [x] Generate OpenAPI spec and SDK types
+  - ✅ Run `pnpm run generate:sdk` completed successfully
+  - ✅ OpenAPI spec includes 16 total endpoints (9 auth + 7 permission)
+  - ✅ TypeScript SDK types available in `demo-app/src/lib/api-client.d.ts`
+  - ✅ Fixed security scheme references (all endpoints use `bearerAuth`)
+
+**Backend - Additional Auth Endpoints:**
+
+- [x] Add change-password endpoint
+  - ✅ Created handler (`src/handlers/change-password.ts`)
+  - ✅ Added OpenAPI schema with proper authentication
+  - ✅ Integrated into OpenAPI spec generation
+  - ✅ Updated demo-app to use typed client instead of manual fetch
+
+**Backend - Testing:**
+
+- [ ] Test bitmap operations (bitwise AND, OR, NOT)
 - [ ] Test delegation validation (subset checking)
-- [ ] Test permission inheritance and scoping
-- [ ] Permission expiration handling
+- [ ] Test permission inheritance and scoping (org → team → repository)
+- [ ] Test permission expiration handling
+- [ ] Test audit trail creation and querying
 
-**Demo App:**
+**Demo App - UI Components:**
 
-- [ ] Create permissions dashboard page (`/routes/dashboard/permissions/index.tsx`)
-- [ ] Build PermissionTree component showing hierarchical permissions
-- [ ] Create RoleSelector component for assigning roles
-- [ ] Add PermissionBadge component for visual permission display
-- [ ] Implement permission delegation UI with subset validation
-- [ ] Create custom role builder interface
-- [ ] Show permission audit trail in user/org settings
-- [ ] Visualize permission inheritance chains
-- [ ] Test permission granting/revoking with real-time updates
+- [x] Create permissions dashboard page (`/routes/dashboard/permissions/index.tsx`)
+  - ✅ Grant role to user with user ID input and role selector
+  - ✅ View user permissions panel showing granted permissions
+  - ✅ My permissions panel showing delegatable permissions
+  - ✅ Available roles grid with system/custom role indicators
+  - ✅ Create custom role form with permission checklist
+  - ✅ Toast notifications for all operations
+  - ✅ Loading states and disabled states during operations
+  - ✅ Updated to use serverApi pattern instead of raw fetch()
+  - ✅ Full type safety with OpenAPI-generated types
+- [x] Build permission UI components (`/components/permissions/`)
+  - ✅ `PermissionBadge` - Visual badge showing permission state (granted/inherited/missing)
+  - ✅ `PermissionBadgeList` - Grid layout for displaying multiple permissions
+  - ✅ `RoleSelector` - Dropdown for selecting roles with delegation validation
+  - ✅ Icons for permission categories (Shield, Users, Key)
+  - ✅ Color-coded permission states (green=granted, blue=inherited, black/white=missing)
+- [x] Build base UI components (`/components/ui/`)
+  - ✅ `Button` component with variants (primary, secondary, danger)
+  - ✅ `Input` component with consistent styling
+  - ✅ `Card` component for content containers
+  - ✅ All components updated to minimalist black & white design system
+- [x] Update dashboard layout (`/routes/dashboard/layout.tsx`)
+  - ✅ Added navigation menu with Dashboard, Permissions, Settings links
+  - ✅ Active link highlighting using useLocation
+  - ✅ Minimalist design system styling (pure black/white, no grays)
+
+**Demo App - API Integration:**
+
+- [x] Create typed permission API client (`/lib/server-api.ts`)
+  - ✅ Added 7 permission methods to serverApi:
+  - ✅ `listRoles(accessToken)` - GET /v1/roles
+  - ✅ `getUserPermissions(accessToken, userId)` - GET /v1/users/{userId}/permissions
+  - ✅ `grantRole(accessToken, data)` - POST /v1/permissions/grant
+  - ✅ `revokeRole(accessToken, data)` - POST /v1/permissions/revoke
+  - ✅ `createRole(accessToken, data)` - POST /v1/roles
+  - ✅ `getRole(accessToken, roleId)` - GET /v1/roles/{roleId}
+  - ✅ `getAuditTrail(accessToken, params)` - GET /v1/permissions/audit
+  - ✅ Full type safety using openapi-fetch
+- [x] Integrate API calls in dashboard
+  - ✅ Load roles on mount with useVisibleTask$
+  - ✅ Load user permissions on user ID change
+  - ✅ Grant role with delegation validation
+  - ✅ Create custom role with permission subset validation
+  - ✅ Error handling with toast notifications
+  - ✅ Optimistic UI updates (reload after mutations)
+- [x] Migrate old API pattern to serverApi
+  - ✅ Updated `/lib/api.ts` to use serverApi internally (deprecated wrapper)
+  - ✅ All components using serverApi pattern (no raw fetch() calls)
+  - ✅ Eliminated fetch pattern across entire codebase
+
+**Next Steps:**
+
+- [x] Run database migration for permission tables
+  - ✅ Deleted old local database (no important data)
+  - ✅ Generated fresh migration: `drizzle/migrations/0000_tidy_maverick.sql`
+  - ✅ Applied migration locally: 11 tables created, 44 SQL commands executed
+  - ✅ Verified tables: roles, role_assignments, permission_audit all present
+- [x] Create seed data for testing
+  - ✅ Created `scripts/database/seed-permissions.ts` - generates SQL for 4 system roles
+  - ✅ Created `scripts/database/cleanup-db.sh` - complete database reset script
+  - ✅ Added `--seed` flag to auto-populate roles after cleanup
+  - ✅ System roles: Admin, Member, Viewer, Billing Manager with proper permission bitmaps
+  - ✅ Documented workflow in `scripts/database/README.md`
+- [ ] Test permissions dashboard end-to-end
+  - Run: `./scripts/database/cleanup-db.sh --seed` to start fresh
+  - Start backend: `cd /Users/logan.powell/Documents/projects/logan/cf-auth && pnpm run dev`
+  - Start frontend: `cd /Users/logan.powell/Documents/projects/logan/cf-auth/demo-app && pnpm run dev`
+  - Register test user and manually grant Admin role
+  - Navigate to /dashboard/permissions
+  - Test: List roles, grant role, create custom role, view permissions
+  - Verify: API calls work, toasts appear, data updates correctly
+- [ ] Implement missing UI features
+  - Add audit trail tab in dashboard (currently placeholder)
+  - Add revoke role functionality (backend exists, UI missing)
+  - Add role details view (show full permission breakdown)
+  - Better error messages (parse API error responses)
 
 ### Phase 5: Organization & Resource Management
 
