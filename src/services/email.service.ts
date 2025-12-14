@@ -10,6 +10,8 @@
  * 3. Email domain configured in EMAIL_FROM environment variable
  */
 
+import { eq, and, gt } from "drizzle-orm";
+import { initDb, schema } from "../db";
 import type { Env } from "../types";
 
 export interface EmailOptions {
@@ -334,4 +336,172 @@ This link will expire in 24 hours. If you didn't create an account, you can safe
     },
     env
   );
+}
+
+// ============================================================================
+// Email Verification Token Operations
+// ============================================================================
+
+/**
+ * Store an email verification token in the database
+ */
+export async function storeEmailVerificationToken(
+  userId: string,
+  userEmail: string,
+  token: string,
+  expiresAt: number,
+  env: Env
+): Promise<string> {
+  const db = initDb(env);
+  const now = Math.floor(Date.now() / 1000);
+
+  // Delete any existing tokens for this user
+  await db
+    .delete(schema.emailVerificationTokens)
+    .where(eq(schema.emailVerificationTokens.userId, userId));
+
+  // Generate ID for the token
+  const { generateId } = await import("../utils/crypto");
+  const tokenId = generateId();
+
+  // Insert new token
+  await db.insert(schema.emailVerificationTokens).values({
+    id: tokenId,
+    userId: userId,
+    email: userEmail,
+    token,
+    expiresAt: expiresAt,
+    createdAt: now,
+  });
+
+  return tokenId;
+}
+
+/**
+ * Verify an email verification token and return the user ID
+ */
+export async function verifyEmailToken(
+  token: string,
+  env: Env
+): Promise<string | null> {
+  const db = initDb(env);
+  const now = Math.floor(Date.now() / 1000);
+
+  const result = await db
+    .select({ userId: schema.emailVerificationTokens.userId })
+    .from(schema.emailVerificationTokens)
+    .where(
+      and(
+        eq(schema.emailVerificationTokens.token, token),
+        gt(schema.emailVerificationTokens.expiresAt, now)
+      )
+    )
+    .get();
+
+  return result?.userId || null;
+}
+
+/**
+ * Delete an email verification token
+ */
+export async function deleteEmailVerificationToken(
+  token: string,
+  env: Env
+): Promise<void> {
+  const db = initDb(env);
+
+  await db
+    .delete(schema.emailVerificationTokens)
+    .where(eq(schema.emailVerificationTokens.token, token));
+}
+
+// ============================================================================
+// Password Reset Token Operations
+// ============================================================================
+
+/**
+ * Store a password reset token in the database
+ */
+export async function storePasswordResetToken(
+  userId: string,
+  token: string,
+  expiresAt: number,
+  env: Env
+): Promise<string> {
+  const db = initDb(env);
+  const now = Math.floor(Date.now() / 1000);
+
+  // Delete any existing reset tokens for this user
+  await db
+    .delete(schema.passwordResetTokens)
+    .where(eq(schema.passwordResetTokens.userId, userId));
+
+  // Generate ID for the token
+  const { generateId } = await import("../utils/crypto");
+  const tokenId = generateId();
+
+  // Insert new token
+  await db.insert(schema.passwordResetTokens).values({
+    id: tokenId,
+    userId: userId,
+    token,
+    expiresAt: expiresAt,
+    createdAt: now,
+  });
+
+  return tokenId;
+}
+
+/**
+ * Verify a password reset token and return the user ID
+ */
+export async function verifyPasswordResetToken(
+  token: string,
+  env: Env
+): Promise<string | null> {
+  const db = initDb(env);
+  const now = Math.floor(Date.now() / 1000);
+
+  const result = await db
+    .select({ userId: schema.passwordResetTokens.userId })
+    .from(schema.passwordResetTokens)
+    .where(
+      and(
+        eq(schema.passwordResetTokens.token, token),
+        gt(schema.passwordResetTokens.expiresAt, now)
+      )
+    )
+    .get();
+
+  return result?.userId || null;
+}
+
+/**
+ * Delete a password reset token
+ */
+export async function deletePasswordResetToken(
+  token: string,
+  env: Env
+): Promise<void> {
+  const db = initDb(env);
+
+  await db
+    .delete(schema.passwordResetTokens)
+    .where(eq(schema.passwordResetTokens.token, token));
+}
+
+/**
+ * Mark a password reset token as used
+ */
+export async function markPasswordResetTokenUsed(
+  token: string,
+  env: Env
+): Promise<void> {
+  const db = initDb(env);
+  const now = Math.floor(Date.now() / 1000);
+
+  await db
+    .update(schema.passwordResetTokens)
+    .set({ usedAt: now })
+    .where(eq(schema.passwordResetTokens.token, token));
 }

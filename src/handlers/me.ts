@@ -10,6 +10,7 @@ import { Context } from "hono";
 import type { Env } from "../types";
 import { verifyAccessToken } from "../services/token.service";
 import { getUserById } from "../services/user.service";
+import { transformUserToApi } from "../schemas/db-schemas";
 
 /**
  * Handle get current user request
@@ -34,23 +35,18 @@ export async function handleGetMe(c: Context<{ Bindings: Env }>) {
     const payload = await verifyAccessToken(accessToken, c.env);
 
     // Get user from database
-    const user = await getUserById(payload.sub, c.env);
+    const dbUser = await getUserById(payload.sub, c.env);
 
-    // Return user data (excluding sensitive fields)
-    return c.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.display_name,
-        avatarUrl: user.avatar_url,
-        emailVerified: user.email_verified,
-        createdAt: user.created_at,
-        updatedAt: user.updated_at,
-        lastLoginAt: user.last_login_at,
-        status: user.status,
-        mfaEnabled: user.mfa_enabled,
+    // Transform database user to API user (using drizzle-zod transformer)
+    const apiUser = transformUserToApi(dbUser);
+
+    // Return user data (transformer handles all conversions)
+    return c.json(
+      {
+        user: apiUser,
       },
-    });
+      200
+    );
   } catch (error) {
     if (error instanceof Error) {
       if (

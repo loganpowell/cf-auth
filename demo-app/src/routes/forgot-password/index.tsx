@@ -10,41 +10,38 @@ import {
   useContext,
   useVisibleTask$,
 } from "@qwik.dev/core";
-import { routeAction$, Form, type DocumentHead } from "@qwik.dev/router";
-import { z } from "zod";
+import {
+  routeAction$,
+  Form,
+  z,
+  zod$,
+  type DocumentHead,
+} from "@qwik.dev/router";
 import { serverApi } from "~/lib/server-api";
 import { ToastContextId } from "~/contexts/toast-context";
 
 // Server action for password reset request
-export const useForgotPasswordAction = routeAction$(async (data, { fail }) => {
-  const schema = z.object({
+export const useForgotPasswordAction = routeAction$(
+  async (data, { fail }) => {
+    try {
+      const response = await serverApi.forgotPassword(data.email);
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      return fail(400, {
+        message:
+          error instanceof Error ? error.message : "Failed to send reset email",
+      });
+    }
+  },
+  zod$({
     email: z.string().email("Invalid email format"),
-  });
-
-  const result = schema.safeParse(data);
-  if (!result.success) {
-    return fail(400, {
-      fieldErrors: {
-        email: result.error.issues[0]?.message,
-      },
-    });
-  }
-
-  try {
-    const response = await serverApi.forgotPassword(result.data.email);
-
-    return {
-      success: true,
-      message: response.message,
-    };
-  } catch (error) {
-    console.error("Forgot password error:", error);
-    return fail(400, {
-      message:
-        error instanceof Error ? error.message : "Failed to send reset email",
-    });
-  }
-});
+  })
+);
 
 export default component$(() => {
   const action = useForgotPasswordAction();

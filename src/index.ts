@@ -2,26 +2,39 @@
  * Main Cloudflare Worker entry point
  *
  * This worker handles all authentication and authorization requests
- * using the Hono framework for routing.
+ * using the Hono framework with OpenAPI for automatic spec generation.
  */
 
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import type { Env } from "./types";
 
-// Import handlers
+// Import OpenAPI route definitions
+import {
+  registerRoute,
+  loginRoute,
+  verifyEmailRoute,
+  resendVerificationRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
+  getMeRoute,
+  refreshRoute,
+  logoutRoute,
+} from "./schemas/auth.schema";
+
+// Import handlers (now simplified - just business logic)
 import { handleRegister } from "./handlers/register";
 import { handleLogin } from "./handlers/login";
 import { handleRefresh } from "./handlers/refresh";
 import { handleLogout } from "./handlers/logout";
 import { handleGetMe } from "./handlers/me";
-import verifyEmailHandler from "./handlers/verify-email";
-import resendVerificationHandler from "./handlers/resend-verification";
+import { handleVerifyEmail } from "./handlers/verify-email";
+import { handleResendVerification } from "./handlers/resend-verification";
 import { handleForgotPassword } from "./handlers/forgot-password";
 import { handleResetPassword } from "./handlers/reset-password";
 
-// Create Hono app with typed environment
-const app = new Hono<{ Bindings: Env }>();
+// Create OpenAPIHono app with typed environment
+const app = new OpenAPIHono<{ Bindings: Env }>();
 
 // Global CORS middleware
 app.use(
@@ -46,26 +59,37 @@ app.get("/health", (c) => {
   });
 });
 
-// API v1 routes
-const v1 = new Hono<{ Bindings: Env }>();
+// Register OpenAPI routes with handlers
+// These routes use the schemas from auth.schema.ts for validation and OpenAPI spec generation
+app.openapi(registerRoute, handleRegister);
+app.openapi(loginRoute, handleLogin);
+app.openapi(verifyEmailRoute, handleVerifyEmail);
+app.openapi(resendVerificationRoute, handleResendVerification);
+app.openapi(forgotPasswordRoute, handleForgotPassword);
+app.openapi(resetPasswordRoute, handleResetPassword);
+app.openapi(getMeRoute, handleGetMe);
+app.openapi(refreshRoute, handleRefresh);
+app.openapi(logoutRoute, handleLogout);
 
-// Auth routes (Phase 2 - Core Authentication)
-v1.post("/auth/register", handleRegister);
-v1.post("/auth/login", handleLogin);
-v1.post("/auth/refresh", handleRefresh);
-v1.post("/auth/logout", handleLogout);
-v1.get("/auth/me", handleGetMe);
-
-// Email verification routes
-v1.route("/auth/verify-email", verifyEmailHandler);
-v1.route("/auth/resend-verification", resendVerificationHandler);
-
-// Password reset routes (Phase 3)
-v1.post("/auth/forgot-password", handleForgotPassword);
-v1.post("/auth/reset-password", handleResetPassword);
-
-// Mount v1 routes
-app.route("/v1", v1);
+// Generate OpenAPI spec endpoint
+app.doc("/openapi.json", {
+  openapi: "3.1.0",
+  info: {
+    title: "CF-Auth API",
+    version: "0.3.0",
+    description: "Authentication and authorization API for Cloudflare Workers",
+  },
+  servers: [
+    {
+      url: "https://auth-api.yourdomain.com",
+      description: "Production",
+    },
+    {
+      url: "http://localhost:8787",
+      description: "Development",
+    },
+  ],
+});
 
 // 404 handler
 app.notFound((c) => {

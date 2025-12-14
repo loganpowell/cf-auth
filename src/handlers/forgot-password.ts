@@ -4,40 +4,45 @@
  * POST /v1/auth/forgot-password
  *
  * Initiates password reset flow by sending reset email.
+ * Validation is handled by the OpenAPI route definition.
  */
 
-import { Context } from "hono";
-import { z } from "zod";
+import type { RouteHandler } from "@hono/zod-openapi";
 import type { Env } from "../types";
-import { generateSecureToken, hashToken } from "../utils/crypto";
+import { forgotPasswordRoute } from "../schemas/auth.schema";
+import { generateSecureToken } from "../utils/crypto";
 import { sendPasswordResetEmail } from "../services/email";
-
-// Request body validation schema
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email format"),
-});
+import { storePasswordResetToken } from "../services/email.service";
+import { initDb, schema } from "../db";
+import { eq } from "drizzle-orm";
 
 /**
  * Handle forgot password request
+ * Data is pre-validated by OpenAPI route schema
  */
-export async function handleForgotPassword(c: Context<{ Bindings: Env }>) {
+export const handleForgotPassword: RouteHandler<
+  typeof forgotPasswordRoute,
+  { Bindings: Env }
+> = async (c) => {
   try {
-    const body = await c.req.json();
-    const { email } = forgotPasswordSchema.parse(body);
+    // Get validated data from OpenAPI middleware
+    const { email } = c.req.valid("json");
 
     console.log("Password reset requested for:", email);
 
+    const db = initDb(c.env);
+
     // Look up user by email
-    const user = await c.env.DB.prepare(
-      `SELECT id, email, email_verified, is_active FROM users WHERE email = ? COLLATE NOCASE`
-    )
-      .bind(email)
-      .first<{
-        id: string;
-        email: string;
-        email_verified: number;
-        is_active: number;
-      }>();
+    const user = await db
+      .select({
+        id: schema.users.id,
+        email: schema.users.email,
+        emailVerified: schema.users.emailVerified,
+        status: schema.users.status,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.email, email.toLowerCase()))
+      .get();
 
     // Always return success to prevent email enumeration attacks
     // Don't reveal whether the email exists or not
@@ -53,7 +58,7 @@ export async function handleForgotPassword(c: Context<{ Bindings: Env }>) {
     }
 
     // Check if user account is active
-    if (user.is_active !== 1) {
+    if (user.status !== "active") {
       console.log("User account is inactive:", email);
       return c.json(
         {
@@ -65,7 +70,7 @@ export async function handleForgotPassword(c: Context<{ Bindings: Env }>) {
     }
 
     // Check if email is verified
-    if (user.email_verified !== 1) {
+    if (!user.emailVerified) {
       console.log("User email not verified:", email);
       return c.json(
         {
@@ -79,23 +84,10 @@ export async function handleForgotPassword(c: Context<{ Bindings: Env }>) {
 
     // Generate password reset token
     const resetToken = generateSecureToken();
-    const tokenHash = await hashToken(resetToken);
     const expiresAt = Math.floor(Date.now() / 1000) + 60 * 60; // 1 hour
-    const tokenId = crypto.randomUUID();
 
     // Store reset token in database
-    await c.env.DB.prepare(
-      `INSERT INTO password_reset_tokens (id, user_id, token, expires_at, created_at)
-       VALUES (?, ?, ?, ?, ?)`
-    )
-      .bind(
-        tokenId,
-        user.id,
-        tokenHash,
-        expiresAt,
-        Math.floor(Date.now() / 1000)
-      )
-      .run();
+    await storePasswordResetToken(user.id, resetToken, expiresAt, c.env);
 
     console.log("Password reset token created for user:", user.id);
 
@@ -117,29 +109,14 @@ export async function handleForgotPassword(c: Context<{ Bindings: Env }>) {
       200
     );
   } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof z.ZodError) {
-      console.error("Validation error:", error.issues);
-      return c.json(
-        {
-          error: "Validation failed",
-          details: error.issues.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400
-      );
-    }
-
-    // Generic error
+    // For any errors, return generic 400 error
     console.error("Forgot password error:", error);
     return c.json(
       {
-        error: "Internal server error",
-        message: "An unexpected error occurred.",
+        error: "Request failed",
+        message: "Unable to process password reset request.",
       },
-      500
+      400
     );
   }
-}
+};

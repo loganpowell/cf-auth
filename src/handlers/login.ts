@@ -4,30 +4,32 @@
  * POST /v1/auth/login
  *
  * Authenticates a user with email and password.
+ * Validation is handled by the OpenAPI route definition.
  */
 
-import { Context } from "hono";
-import { z } from "zod";
+import type { RouteHandler } from "@hono/zod-openapi";
 import type { Env } from "../types";
+import { loginRoute } from "../schemas/auth.schema";
 import { loginUser } from "../services/user.service";
-
-// Request body validation schema
-const loginSchema = z.object({
-  email: z.string().email("Invalid email format"),
-  password: z.string().min(1, "Password is required"),
-});
+import { transformUserForLogin } from "../schemas/db-schemas";
 
 /**
  * Handle user login
+ * Data is pre-validated by OpenAPI route schema
  */
-export async function handleLogin(c: Context<{ Bindings: Env }>) {
+export const handleLogin: RouteHandler<
+  typeof loginRoute,
+  { Bindings: Env }
+> = async (c) => {
   try {
-    // Parse and validate request body
-    const body = await c.req.json();
-    const validatedData = loginSchema.parse(body);
+    // Get validated data from OpenAPI middleware
+    const validatedData = c.req.valid("json");
 
     // Authenticate user
     const result = await loginUser(validatedData, c.env);
+
+    // Transform database user to API user (partial for login response)
+    const apiUser = transformUserForLogin(result.user);
 
     // Set refresh token as httpOnly cookie
     c.header(
@@ -35,36 +37,18 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
       `refreshToken=${result.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
     );
 
-    // Return user and access token
-    return c.json({
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        displayName: result.user.display_name,
-        avatarUrl: result.user.avatar_url,
-        emailVerified: result.user.email_verified,
-        lastLoginAt: result.user.last_login_at,
+    // Return response matching OpenAPI schema
+    return c.json(
+      {
+        message: apiUser.emailVerified
+          ? "Login successful"
+          : "Login successful. Please verify your email address.",
+        accessToken: result.accessToken,
+        user: apiUser,
       },
-      accessToken: result.accessToken,
-      message: result.user.email_verified
-        ? "Login successful"
-        : "Login successful. Please verify your email address.",
-    });
+      200
+    );
   } catch (error) {
-    // Handle validation errors
-    if (error instanceof z.ZodError) {
-      return c.json(
-        {
-          error: "Validation failed",
-          details: error.issues.map((err) => ({
-            field: err.path.join("."),
-            message: err.message,
-          })),
-        },
-        400
-      );
-    }
-
     // Handle authentication errors
     if (error instanceof Error) {
       // Use generic error message for security (don't reveal if email exists)
@@ -110,4 +94,4 @@ export async function handleLogin(c: Context<{ Bindings: Env }>) {
       500
     );
   }
-}
+};

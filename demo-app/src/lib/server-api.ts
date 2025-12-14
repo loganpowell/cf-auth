@@ -235,4 +235,38 @@ export const serverApi = {
 
     return response.data;
   },
+
+  /**
+   * Change password (requires auth token)
+   * NOTE: This endpoint is not yet migrated to OpenAPI (Phase 3.5)
+   * Uses manual fetch until SDK types are generated
+   */
+  async changePassword(
+    accessToken: string,
+    currentPassword: string,
+    newPassword: string
+  ) {
+    const apiUrl = getApiUrl();
+    const response = await fetch(`${apiUrl}/v1/auth/change-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.error || error.message || "Failed to change password"
+      );
+    }
+
+    const data = await response.json();
+    return data;
+  },
 };

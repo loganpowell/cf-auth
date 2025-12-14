@@ -188,31 +188,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RegisterUser: {
+            id: string;
+            email: string;
+            displayName: string | null;
+        };
         RegisterResponse: {
             /**
              * @description Success message
-             * @example Registration successful
+             * @example Registration successful. Please check your email to verify your account.
              */
             message: string;
-            /** @description Created user information */
-            user: {
-                /**
-                 * @description Unique user identifier (UUID)
-                 * @example 550e8400-e29b-41d4-a716-446655440000
-                 */
-                id: string;
-                /**
-                 * Format: email
-                 * @description User email address
-                 * @example user@example.com
-                 */
-                email: string;
-                /**
-                 * @description User display name
-                 * @example johndoe
-                 */
-                displayName: string;
-            };
+            user: components["schemas"]["RegisterUser"];
+            /**
+             * @description JWT access token for immediate login
+             * @example eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+             */
+            accessToken: string;
         };
         ErrorResponse: {
             /**
@@ -251,6 +243,13 @@ export interface components {
              */
             displayName: string;
         };
+        /** @description Authenticated user information */
+        LoginUser: {
+            id: string;
+            email: string;
+            displayName: string | null;
+            emailVerified: boolean;
+        };
         LoginResponse: {
             /**
              * @description Success message
@@ -262,30 +261,7 @@ export interface components {
              * @example eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
              */
             accessToken: string;
-            /** @description Authenticated user information */
-            user: {
-                /**
-                 * @description Unique user identifier (UUID)
-                 * @example 550e8400-e29b-41d4-a716-446655440000
-                 */
-                id: string;
-                /**
-                 * Format: email
-                 * @description User email address
-                 * @example user@example.com
-                 */
-                email: string;
-                /**
-                 * @description User display name
-                 * @example johndoe
-                 */
-                displayName: string;
-                /**
-                 * @description Whether email is verified
-                 * @example true
-                 */
-                emailVerified: boolean;
-            };
+            user: components["schemas"]["LoginUser"];
         };
         LoginRequest: {
             /**
@@ -365,62 +341,16 @@ export interface components {
         };
         /** @description Current user information */
         User: {
-            /**
-             * @description Unique user identifier (UUID)
-             * @example 550e8400-e29b-41d4-a716-446655440000
-             */
             id: string;
-            /**
-             * Format: email
-             * @description User email address
-             * @example user@example.com
-             */
             email: string;
-            /**
-             * @description User display name
-             * @example johndoe
-             */
-            displayName: string;
-            /**
-             * Format: uri
-             * @description User avatar URL
-             * @example https://example.com/avatar.jpg
-             */
-            avatarUrl?: string | null;
-            /**
-             * @description Whether email is verified
-             * @example true
-             */
+            displayName: string | null;
+            avatarUrl: string | null;
             emailVerified: boolean;
-            /**
-             * Format: date-time
-             * @description Account creation timestamp
-             * @example 2025-01-01T00:00:00Z
-             */
-            createdAt: string;
-            /**
-             * Format: date-time
-             * @description Last update timestamp
-             * @example 2025-01-01T00:00:00Z
-             */
-            updatedAt: string;
-            /**
-             * Format: date-time
-             * @description Last login timestamp
-             * @example 2025-01-01T00:00:00Z
-             */
-            lastLoginAt?: string | null;
-            /**
-             * @description Account status
-             * @example active
-             * @enum {string}
-             */
+            createdAt: number;
+            updatedAt: number;
+            lastLoginAt: number | null;
+            /** @enum {string} */
             status: "active" | "suspended";
-            /**
-             * @description Whether MFA is enabled
-             * @example false
-             */
-            mfaEnabled: boolean;
         };
         GetMeResponse: {
             user: components["schemas"]["User"];
@@ -470,8 +400,17 @@ export interface operations {
                     "application/json": components["schemas"]["RegisterResponse"];
                 };
             };
-            /** @description Validation error or email already exists */
+            /** @description Validation error */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Email already registered */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -523,6 +462,24 @@ export interface operations {
             };
             /** @description Invalid credentials */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account suspended */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -682,8 +639,35 @@ export interface operations {
                     "application/json": components["schemas"]["GetMeResponse"];
                 };
             };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Unauthorized - invalid or expired token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

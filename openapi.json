@@ -13,45 +13,49 @@
   ],
   "components": {
     "schemas": {
+      "RegisterUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName"
+        ]
+      },
       "RegisterResponse": {
         "type": "object",
         "properties": {
           "message": {
             "type": "string",
             "description": "Success message",
-            "example": "Registration successful"
+            "example": "Registration successful. Please check your email to verify your account."
           },
           "user": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique user identifier (UUID)",
-                "example": "550e8400-e29b-41d4-a716-446655440000"
-              },
-              "email": {
-                "type": "string",
-                "format": "email",
-                "description": "User email address",
-                "example": "user@example.com"
-              },
-              "displayName": {
-                "type": "string",
-                "description": "User display name",
-                "example": "johndoe"
-              }
-            },
-            "required": [
-              "id",
-              "email",
-              "displayName"
-            ],
-            "description": "Created user information"
+            "$ref": "#/components/schemas/RegisterUser"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "JWT access token for immediate login",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           }
         },
         "required": [
           "message",
-          "user"
+          "user",
+          "accessToken"
         ]
       },
       "ErrorResponse": {
@@ -121,6 +125,33 @@
           "displayName"
         ]
       },
+      "LoginUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emailVerified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "emailVerified"
+        ],
+        "description": "Authenticated user information"
+      },
       "LoginResponse": {
         "type": "object",
         "properties": {
@@ -135,37 +166,7 @@
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           },
           "user": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique user identifier (UUID)",
-                "example": "550e8400-e29b-41d4-a716-446655440000"
-              },
-              "email": {
-                "type": "string",
-                "format": "email",
-                "description": "User email address",
-                "example": "user@example.com"
-              },
-              "displayName": {
-                "type": "string",
-                "description": "User display name",
-                "example": "johndoe"
-              },
-              "emailVerified": {
-                "type": "boolean",
-                "description": "Whether email is verified",
-                "example": true
-              }
-            },
-            "required": [
-              "id",
-              "email",
-              "displayName",
-              "emailVerified"
-            ],
-            "description": "Authenticated user information"
+            "$ref": "#/components/schemas/LoginUser"
           }
         },
         "required": [
@@ -311,80 +312,62 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "description": "Unique user identifier (UUID)",
-            "example": "550e8400-e29b-41d4-a716-446655440000"
+            "type": "string"
           },
           "email": {
-            "type": "string",
-            "format": "email",
-            "description": "User email address",
-            "example": "user@example.com"
+            "type": "string"
           },
           "displayName": {
-            "type": "string",
-            "description": "User display name",
-            "example": "johndoe"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "avatarUrl": {
             "type": [
               "string",
               "null"
-            ],
-            "format": "uri",
-            "description": "User avatar URL",
-            "example": "https://example.com/avatar.jpg"
+            ]
           },
           "emailVerified": {
-            "type": "boolean",
-            "description": "Whether email is verified",
-            "example": true
+            "type": "boolean"
           },
           "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Account creation timestamp",
-            "example": "2025-01-01T00:00:00Z"
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last update timestamp",
-            "example": "2025-01-01T00:00:00Z"
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "lastLoginAt": {
             "type": [
-              "string",
+              "integer",
               "null"
             ],
-            "format": "date-time",
-            "description": "Last login timestamp",
-            "example": "2025-01-01T00:00:00Z"
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "status": {
             "type": "string",
             "enum": [
               "active",
               "suspended"
-            ],
-            "description": "Account status",
-            "example": "active"
-          },
-          "mfaEnabled": {
-            "type": "boolean",
-            "description": "Whether MFA is enabled",
-            "example": false
+            ]
           }
         },
         "required": [
           "id",
           "email",
           "displayName",
+          "avatarUrl",
           "emailVerified",
           "createdAt",
           "updatedAt",
-          "status",
-          "mfaEnabled"
+          "lastLoginAt",
+          "status"
         ],
         "description": "Current user information"
       },
@@ -467,7 +450,17 @@
             }
           },
           "400": {
-            "description": "Validation error or email already exists",
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already registered",
             "content": {
               "application/json": {
                 "schema": {
@@ -530,6 +523,26 @@
           },
           "401": {
             "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account suspended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -733,8 +746,38 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized - invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {

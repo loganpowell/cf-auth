@@ -171,6 +171,23 @@ pnpm run build
 pnpm run deploy
 ```
 
+### Generate OpenAPI Spec & SDK
+
+After modifying API schemas or routes, regenerate the OpenAPI spec and TypeScript SDK for the demo app:
+
+```bash
+# Generate OpenAPI spec + demo app SDK types
+pnpm run generate:sdk
+
+# Or just generate the OpenAPI spec
+pnpm run generate:openapi
+```
+
+This creates:
+
+- `openapi.json` - OpenAPI 3.1 spec with all endpoints
+- `demo-app/src/lib/api-client.d.ts` - TypeScript types for the frontend
+
 ## 📖 API Endpoints
 
 - `GET /health` - Health check

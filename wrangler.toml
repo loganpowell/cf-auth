@@ -16,6 +16,7 @@ enabled = true
 binding = "DB"
 database_name = "auth-db"
 database_id = "f09cd536-1f82-439c-b507-a30051987b24"
+migrations_dir = "drizzle/migrations"
 
 # KV Namespace bindings (local development)
 [[kv_namespaces]]

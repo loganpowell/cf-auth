@@ -4,15 +4,12 @@
  * Handles user registration, authentication, and profile management.
  */
 
-import type { User, Env } from "../types";
+import { eq } from "drizzle-orm";
+import { initDb, schema } from "../db";
+import type { User } from "../db/schema";
+import type { Env } from "../types";
 import { hashPassword, verifyPassword } from "../utils/crypto";
-import {
-  createUser,
-  findUserByEmail,
-  findUserById,
-  updateLastLogin,
-  getUserOrganizations,
-} from "../db/queries";
+import { generateId } from "../utils/crypto";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -34,6 +31,26 @@ export interface LoginResult {
 }
 
 /**
+ * Get user organizations (Phase 4 - placeholder)
+ */
+async function getUserOrganizations(
+  _userId: string,
+  _env: Env
+): Promise<
+  Array<{
+    id: string;
+    slug: string;
+    perms: { low: string; high: string };
+    is_owner: boolean;
+  }>
+> {
+  // For Phase 2/3, we'll return an empty array since we haven't implemented
+  // the organization/permission system yet.
+  // This will be populated in Phase 4.
+  return [];
+}
+
+/**
  * Register a new user
  *
  * @param data - Registration data
@@ -49,6 +66,8 @@ export async function registerUser(
   },
   env: Env
 ): Promise<RegisterResult> {
+  const db = initDb(env);
+
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(data.email)) {
@@ -63,7 +82,12 @@ export async function registerUser(
   // TODO: Add more password validation (uppercase, lowercase, number, special char)
 
   // Check if user already exists
-  const existingUser = await findUserByEmail(data.email, env);
+  const existingUser = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, data.email.toLowerCase()))
+    .get();
+
   if (existingUser) {
     throw new Error("Email already registered");
   }
@@ -72,15 +96,32 @@ export async function registerUser(
   const passwordHash = await hashPassword(data.password);
 
   // Create user
-  const user = await createUser(
-    {
-      email: data.email,
-      passwordHash,
-      displayName: data.displayName,
-      emailVerified: false, // Will need email verification
-    },
-    env
-  );
+  const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+  const userId = generateId();
+
+  await db.insert(schema.users).values({
+    id: userId,
+    email: data.email.toLowerCase(),
+    passwordHash: passwordHash,
+    emailVerified: false,
+    displayName: data.displayName || null,
+    avatarUrl: null,
+    createdAt: now,
+    updatedAt: now,
+    lastLoginAt: null,
+    status: "active",
+  });
+
+  // Fetch the created user
+  const user = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+
+  if (!user) {
+    throw new Error("Failed to create user");
+  }
 
   // Generate tokens
   const organizations = await getUserOrganizations(user.id, env);
@@ -119,32 +160,45 @@ export async function loginUser(
   },
   env: Env
 ): Promise<LoginResult> {
+  const db = initDb(env);
+
   // Find user by email
-  const user = await findUserByEmail(data.email, env);
-  if (!user) {
+  const rawUser = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.email, data.email.toLowerCase()))
+    .get();
+
+  if (!rawUser) {
     throw new Error("Invalid email or password");
   }
 
   // Check if user has a password (might be OAuth-only user)
-  if (!user.password_hash) {
+  if (!rawUser.passwordHash) {
     throw new Error(
       "This account uses social login. Please sign in with your connected provider."
     );
   }
 
   // Verify password
-  const isValid = await verifyPassword(data.password, user.password_hash);
+  const isValid = await verifyPassword(data.password, rawUser.passwordHash);
   if (!isValid) {
     throw new Error("Invalid email or password");
   }
 
-  // Check account status
-  if (user.status === "suspended") {
+  // Check account status (status replaces isActive field)
+  if (rawUser.status !== "active") {
     throw new Error("Account has been suspended. Please contact support.");
   }
 
   // Update last login
-  await updateLastLogin(user.id, env);
+  const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
+  await db
+    .update(schema.users)
+    .set({ lastLoginAt: now })
+    .where(eq(schema.users.id, rawUser.id));
+
+  const user = rawUser;
 
   // Generate tokens
   const organizations = await getUserOrganizations(user.id, env);
@@ -180,14 +234,23 @@ export async function refreshUserToken(
   refreshToken: string,
   env: Env
 ): Promise<{ accessToken: string; refreshToken: string }> {
+  const db = initDb(env);
+
   // Verify and get user ID from refresh token
   const userId = await verifyRefreshToken(refreshToken, env);
 
   // Get user
-  const user = await findUserById(userId, env);
-  if (!user) {
+  const rawUser = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+
+  if (!rawUser) {
     throw new Error("User not found");
   }
+
+  const user = rawUser;
 
   // Revoke old refresh token (single-use rotation)
   await revokeRefreshToken(refreshToken, env);
@@ -220,10 +283,17 @@ export async function refreshUserToken(
  * @throws Error if user not found
  */
 export async function getUserById(userId: string, env: Env): Promise<User> {
-  const user = await findUserById(userId, env);
-  if (!user) {
+  const db = initDb(env);
+
+  const rawUser = await db
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .get();
+
+  if (!rawUser) {
     throw new Error("User not found");
   }
 
-  return user;
+  return rawUser;
 }

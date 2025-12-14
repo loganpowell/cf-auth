@@ -3,59 +3,34 @@
  *
  * These schemas define the request/response structure for all auth endpoints
  * and are used to generate the OpenAPI spec and TypeScript SDK.
+ *
+ * ALL schemas are auto-generated from Drizzle database schema via drizzle-zod.
+ * This ensures ZERO schema drift between database and API.
  */
 
 import { z } from "zod";
 import { createRoute } from "@hono/zod-openapi";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
+import {
+  UserApiSchema,
+  UserApiSchemaForRegister,
+  UserApiSchemaForLogin,
+} from "./db-schemas";
 
-// Extend Zod with OpenAPI support to ensure proper JSON Schema generation
+// Extend Zod with OpenAPI support
 extendZodWithOpenApi(z);
 
 // ============================================================================
-// Shared Schemas
+// Import Auto-Generated Schemas from db-schemas.ts
 // ============================================================================
 
-const UserSchema = z
-  .object({
-    id: z.string().openapi({
-      description: "Unique user identifier (UUID)",
-      example: "550e8400-e29b-41d4-a716-446655440000",
-    }),
-    email: z.string().email().openapi({
-      description: "User email address",
-      example: "user@example.com",
-    }),
-    displayName: z
-      .string()
-      .openapi({ description: "User display name", example: "johndoe" }),
-    avatarUrl: z.string().url().nullish().openapi({
-      description: "User avatar URL",
-      example: "https://example.com/avatar.jpg",
-    }),
-    emailVerified: z
-      .boolean()
-      .openapi({ description: "Whether email is verified", example: true }),
-    createdAt: z.string().datetime().openapi({
-      description: "Account creation timestamp",
-      example: "2025-01-01T00:00:00Z",
-    }),
-    updatedAt: z.string().datetime().openapi({
-      description: "Last update timestamp",
-      example: "2025-01-01T00:00:00Z",
-    }),
-    lastLoginAt: z.string().datetime().nullish().openapi({
-      description: "Last login timestamp",
-      example: "2025-01-01T00:00:00Z",
-    }),
-    status: z
-      .enum(["active", "suspended"])
-      .openapi({ description: "Account status", example: "active" }),
-    mfaEnabled: z
-      .boolean()
-      .openapi({ description: "Whether MFA is enabled", example: false }),
-  })
-  .openapi("User");
+/**
+ * User schemas - imported from db-schemas.ts
+ * All auto-generated from Drizzle, no manual definitions
+ */
+const UserSchema = UserApiSchema;
+const UserSchemaForRegister = UserApiSchemaForRegister;
+const UserSchemaForLogin = UserApiSchemaForLogin;
 
 const ErrorResponseSchema = z
   .object({
@@ -84,7 +59,7 @@ const ErrorResponseSchema = z
 
 export const RegisterRequestSchema = z
   .object({
-    email: z.string().email().openapi({
+    email: z.email().openapi({
       description: "User email address",
       example: "user@example.com",
     }),
@@ -103,13 +78,14 @@ export const RegisterResponseSchema = z
   .object({
     message: z.string().openapi({
       description: "Success message",
-      example: "Registration successful",
+      example:
+        "Registration successful. Please check your email to verify your account.",
     }),
-    user: UserSchema.pick({
-      id: true,
-      email: true,
-      displayName: true,
-    }).openapi({ description: "Created user information" }),
+    user: UserSchemaForRegister,
+    accessToken: z.string().openapi({
+      description: "JWT access token for immediate login",
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    }),
   })
   .openapi("RegisterResponse");
 
@@ -145,7 +121,15 @@ export const registerRoute = createRoute({
           schema: ErrorResponseSchema,
         },
       },
-      description: "Validation error or email already exists",
+      description: "Validation error",
+    },
+    409: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Email already registered",
     },
     500: {
       content: {
@@ -164,7 +148,7 @@ export const registerRoute = createRoute({
 
 export const LoginRequestSchema = z
   .object({
-    email: z.string().email().openapi({
+    email: z.email().openapi({
       description: "User email address",
       example: "user@example.com",
     }),
@@ -183,12 +167,9 @@ export const LoginResponseSchema = z
       description: "JWT access token (15min TTL)",
       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     }),
-    user: UserSchema.pick({
-      id: true,
-      email: true,
-      displayName: true,
-      emailVerified: true,
-    }).openapi({ description: "Authenticated user information" }),
+    user: UserSchemaForLogin.openapi({
+      description: "Authenticated user information",
+    }),
   })
   .openapi("LoginResponse");
 
@@ -226,6 +207,14 @@ export const loginRoute = createRoute({
       },
       description: "Invalid credentials",
     },
+    403: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Account suspended",
+    },
     400: {
       content: {
         "application/json": {
@@ -233,6 +222,14 @@ export const loginRoute = createRoute({
         },
       },
       description: "Validation error",
+    },
+    500: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Internal server error",
     },
   },
 });
@@ -302,7 +299,7 @@ export const verifyEmailRoute = createRoute({
 
 export const ResendVerificationRequestSchema = z
   .object({
-    email: z.string().email().openapi({
+    email: z.email().openapi({
       description: "User email address",
       example: "user@example.com",
     }),
@@ -361,7 +358,7 @@ export const resendVerificationRoute = createRoute({
 
 export const ForgotPasswordRequestSchema = z
   .object({
-    email: z.string().email().openapi({
+    email: z.email().openapi({
       description: "User email address",
       example: "user@example.com",
     }),
@@ -517,6 +514,30 @@ export const getMeRoute = createRoute({
       },
       description: "Unauthorized - invalid or expired token",
     },
+    404: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "User not found",
+    },
+    400: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Bad request",
+    },
+    500: {
+      content: {
+        "application/json": {
+          schema: ErrorResponseSchema,
+        },
+      },
+      description: "Internal server error",
+    },
   },
 });
 
@@ -598,3 +619,36 @@ export const logoutRoute = createRoute({
     },
   },
 });
+
+// ============================================================================
+// Type Exports - Inferred from Zod Schemas (Single Source of Truth)
+// ============================================================================
+
+// Core Types
+export type User = z.infer<typeof UserSchema>;
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+
+// Request Types
+export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+export type VerifyEmailRequest = z.infer<typeof VerifyEmailRequestSchema>;
+export type ResendVerificationRequest = z.infer<
+  typeof ResendVerificationRequestSchema
+>;
+export type ForgotPasswordRequest = z.infer<typeof ForgotPasswordRequestSchema>;
+export type ResetPasswordRequest = z.infer<typeof ResetPasswordRequestSchema>;
+
+// Response Types
+export type RegisterResponse = z.infer<typeof RegisterResponseSchema>;
+export type LoginResponse = z.infer<typeof LoginResponseSchema>;
+export type VerifyEmailResponse = z.infer<typeof VerifyEmailResponseSchema>;
+export type ResendVerificationResponse = z.infer<
+  typeof ResendVerificationResponseSchema
+>;
+export type ForgotPasswordResponse = z.infer<
+  typeof ForgotPasswordResponseSchema
+>;
+export type ResetPasswordResponse = z.infer<typeof ResetPasswordResponseSchema>;
+export type GetMeResponse = z.infer<typeof GetMeResponseSchema>;
+export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
+export type LogoutResponse = z.infer<typeof LogoutResponseSchema>;

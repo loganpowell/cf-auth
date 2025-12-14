@@ -14,9 +14,10 @@ import {
   routeAction$,
   routeLoader$,
   Form,
+  z,
+  zod$,
   type DocumentHead,
 } from "@qwik.dev/router";
-import { z } from "zod";
 import { serverApi } from "~/lib/server-api";
 import { ToastContextId } from "~/contexts/toast-context";
 
@@ -28,61 +29,48 @@ export const useResetToken = routeLoader$(({ query }) => {
 });
 
 // Server action for password reset
-export const useResetPasswordAction = routeAction$(async (data, { fail }) => {
-  const schema = z
-    .object({
-      token: z.string().min(1, "Reset token is required"),
-      newPassword: z
-        .string()
-        .min(8, "Password must be at least 8 characters")
-        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-        .regex(/[0-9]/, "Password must contain at least one number")
-        .regex(
-          /[^A-Za-z0-9]/,
-          "Password must contain at least one special character"
-        ),
-      confirmPassword: z.string(),
-    })
-    .refine((data) => data.newPassword === data.confirmPassword, {
-      message: "Passwords don't match",
-      path: ["confirmPassword"],
-    });
+export const useResetPasswordAction = routeAction$(
+  async (data, { fail }) => {
+    try {
+      const response = await serverApi.resetPassword(
+        data.token,
+        data.newPassword
+      );
 
-  const result = schema.safeParse(data);
-  if (!result.success) {
-    const errors = result.error.issues.reduce(
-      (acc: Record<string, string>, err) => {
-        const field = err.path[0] as string;
-        acc[field] = err.message;
-        return acc;
-      },
-      {} as Record<string, string>
-    );
-
-    return fail(400, {
-      fieldErrors: errors,
-    });
-  }
-
-  try {
-    const response = await serverApi.resetPassword(
-      result.data.token,
-      result.data.newPassword
-    );
-
-    return {
-      success: true,
-      message: response.message,
-    };
-  } catch (error) {
-    console.error("Reset password error:", error);
-    return fail(400, {
-      message:
-        error instanceof Error ? error.message : "Failed to reset password",
-    });
-  }
-});
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      console.error("Reset password error:", error);
+      return fail(400, {
+        message:
+          error instanceof Error ? error.message : "Failed to reset password",
+      });
+    }
+  },
+  zod$(
+    z
+      .object({
+        token: z.string().min(1, "Reset token is required"),
+        newPassword: z
+          .string()
+          .min(8, "Password must be at least 8 characters")
+          .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+          .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+          .regex(/[0-9]/, "Password must contain at least one number")
+          .regex(
+            /[^A-Za-z0-9]/,
+            "Password must contain at least one special character"
+          ),
+        confirmPassword: z.string(),
+      })
+      .refine((data) => data.newPassword === data.confirmPassword, {
+        message: "Passwords don't match",
+        path: ["confirmPassword"],
+      })
+  )
+);
 
 export default component$(() => {
   const tokenData = useResetToken();

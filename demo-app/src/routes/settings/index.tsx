@@ -6,9 +6,7 @@
 
 import { component$, useContext, useVisibleTask$ } from "@qwik.dev/core";
 import { routeLoader$, routeAction$, Form, z, zod$ } from "@qwik.dev/router";
-import type { ChangePasswordRequest } from "@/types/shared";
 import { serverApi } from "~/lib/server-api";
-import { getApiUrl } from "~/lib/config"; // Still needed for password change
 import { ToastContextId } from "~/contexts/toast-context";
 
 // Fetch user data
@@ -65,48 +63,44 @@ export const useChangePassword = routeAction$(
     }
 
     try {
-      const apiUrl = getApiUrl();
-      const requestBody: ChangePasswordRequest = {
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      };
-
-      const response = await fetch(`${apiUrl}/v1/auth/change-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken.value}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        return fail(response.status, {
-          message: error.error || "Failed to change password",
-        });
-      }
+      const result = await serverApi.changePassword(
+        accessToken.value,
+        data.currentPassword,
+        data.newPassword
+      );
 
       return {
         success: true,
-        message: "Password changed successfully",
+        message: result.message || "Password changed successfully",
       };
     } catch (error) {
       console.error("Password change error:", error);
-      return fail(500, { message: "Network error. Please try again." });
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to change password";
+      return fail(400, { message: errorMessage });
     }
   },
-  zod$({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-        "Password must contain uppercase, lowercase, number, and special character"
-      ),
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
+  zod$(
+    z
+      .object({
+        currentPassword: z.string().min(1, "Current password is required"),
+        newPassword: z
+          .string()
+          .min(8, "Password must be at least 8 characters")
+          .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+          .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+          .regex(/[0-9]/, "Password must contain at least one number")
+          .regex(
+            /[^A-Za-z0-9]/,
+            "Password must contain at least one special character"
+          ),
+        confirmPassword: z.string().min(1, "Please confirm your password"),
+      })
+      .refine((data) => data.newPassword === data.confirmPassword, {
+        message: "Passwords don't match",
+        path: ["confirmPassword"],
+      })
+  )
 );
 
 export default component$(() => {

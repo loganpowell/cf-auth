@@ -26,7 +26,11 @@ const app = new OpenAPIHono();
 // Register all routes (handlers are just stubs for spec generation)
 app.openapi(registerRoute, async (c) => {
   return c.json(
-    { message: "", user: { id: "", email: "", displayName: "" } },
+    {
+      message: "",
+      user: { id: "", email: "", displayName: "" },
+      accessToken: "",
+    },
     201
   );
 });
@@ -64,14 +68,13 @@ app.openapi(getMeRoute, async (c) => {
       user: {
         id: "",
         email: "",
-        displayName: "",
+        displayName: null,
         avatarUrl: null,
         emailVerified: false,
-        createdAt: "",
-        updatedAt: "",
+        createdAt: 0,
+        updatedAt: 0,
         lastLoginAt: null,
         status: "active" as const,
-        mfaEnabled: false,
       },
     },
     200

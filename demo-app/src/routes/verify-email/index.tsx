@@ -71,9 +71,7 @@ export default component$(() => {
 
   // Verify email on mount
   // eslint-disable-next-line qwik/no-use-visible-task
-  useVisibleTask$(async ({ track }) => {
-    track(() => tokenData.value);
-
+  useVisibleTask$(async () => {
     const token = tokenData.value.token;
 
     if (!token) {

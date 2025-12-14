@@ -4,61 +4,49 @@
  * POST /v1/auth/register
  *
  * Creates a new user account with email/password.
+ * Validation is handled by the OpenAPI route definition.
  */
 
-import { Context } from "hono";
-import { z } from "zod";
+import type { RouteHandler } from "@hono/zod-openapi";
 import type { Env } from "../types";
+import { registerRoute } from "../schemas/auth.schema";
 import { registerUser } from "../services/user.service";
-import { generateSecureToken, hashToken } from "../utils/crypto";
-import { sendVerificationEmail } from "../services/email";
-
-// Request body validation schema
-const registerSchema = z.object({
-  email: z.string().email("Invalid email format"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character"
-    ),
-  displayName: z
-    .string()
-    .min(1, "Display name is required")
-    .max(100, "Display name must be less than 100 characters"),
-});
+import { generateSecureToken } from "../utils/crypto";
+import {
+  sendVerificationEmail,
+  storeEmailVerificationToken,
+} from "../services/email.service";
+import { transformUserForRegister } from "../schemas/db-schemas";
 
 /**
  * Handle user registration
+ * Data is pre-validated by OpenAPI route schema
  */
-export async function handleRegister(c: Context<{ Bindings: Env }>) {
+export const handleRegister: RouteHandler<
+  typeof registerRoute,
+  { Bindings: Env }
+> = async (c) => {
   try {
-    // Parse and validate request body
-    const body = await c.req.json();
-    console.log("Registration request body:", body);
-    const validatedData = registerSchema.parse(body);
-    console.log("Validation passed, registering user...");
+    // Get validated data from OpenAPI middleware
+    const validatedData = c.req.valid("json");
+    console.log("Registration request:", validatedData.email);
 
     // Register user
     const result = await registerUser(validatedData, c.env);
     console.log("User registered:", result.user.email);
 
-    // Generate email verification token
+    // Generate email verification token (plain text, not hashed)
     const verificationToken = generateSecureToken();
-    const tokenHash = await hashToken(verificationToken);
     const expiresAt = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours
 
     // Store verification token in database
-    await c.env.DB.prepare(
-      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
-       VALUES (?, ?, ?, ?)`
-    )
-      .bind(result.user.id, tokenHash, expiresAt, Math.floor(Date.now() / 1000))
-      .run();
+    await storeEmailVerificationToken(
+      result.user.id,
+      result.user.email,
+      verificationToken,
+      expiresAt,
+      c.env
+    );
 
     // Send verification email (wait for it to ensure it sends)
     try {
@@ -75,42 +63,24 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
       `refreshToken=${result.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
     );
 
-    // Return user and access token (excluding sensitive data)
+    // Transform database user to API user (partial for register response)
+    const apiUser = transformUserForRegister(result.user);
+
+    // Return response matching OpenAPI schema
     return c.json(
       {
-        user: {
-          id: result.user.id,
-          email: result.user.email,
-          displayName: result.user.display_name,
-          avatarUrl: result.user.avatar_url,
-          emailVerified: result.user.email_verified,
-          createdAt: result.user.created_at,
-        },
-        accessToken: result.accessToken,
         message:
           "Registration successful. Please check your email to verify your account.",
+        user: apiUser,
+        accessToken: result.accessToken,
       },
       201
     );
   } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof z.ZodError) {
-      console.error("Validation error:", error.issues);
-      return c.json(
-        {
-          error: "Validation failed",
-          details: error.issues.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        },
-        400
-      );
-    }
-
     // Handle business logic errors
     if (error instanceof Error) {
       console.error("Business logic error:", error.message);
+
       // Check for specific error messages
       if (error.message.includes("already registered")) {
         return c.json(
@@ -142,4 +112,4 @@ export async function handleRegister(c: Context<{ Bindings: Env }>) {
       500
     );
   }
-}
+};

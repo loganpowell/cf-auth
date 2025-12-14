@@ -5,7 +5,10 @@
  */
 
 import * as jose from "jose";
-import type { AccessTokenPayload, User, Env } from "../types";
+import { eq, and, gt, isNull } from "drizzle-orm";
+import type { AccessTokenPayload, Env } from "../types";
+import type { User } from "../db/schema";
+import { initDb, schema } from "../db";
 import { generateId, generateSecureToken, hashToken } from "../utils/crypto";
 
 /**
@@ -19,27 +22,39 @@ import { generateId, generateSecureToken, hashToken } from "../utils/crypto";
 export async function generateAccessToken(
   user: User,
   env: Env,
-  organizations: AccessTokenPayload["permissions"]["organizations"] = []
+  organizations: Array<{
+    id: string;
+    slug: string;
+    perms: { low: string; high: string };
+    is_owner: boolean;
+  }> = []
 ): Promise<string> {
   const secret = new TextEncoder().encode(env.JWT_SECRET);
   const expirationSeconds = parseInt(env.JWT_ACCESS_EXPIRATION || "900"); // 15 minutes default
+
+  // Map organization data to token payload format
+  const orgPermissions = organizations.map((org) => ({
+    id: org.id,
+    role: org.is_owner ? "owner" : "member",
+    permissions: [org.perms.low, org.perms.high],
+  }));
 
   const payload: AccessTokenPayload = {
     // Standard claims
     sub: user.id,
     email: user.email,
-    email_verified: user.email_verified,
+    email_verified: user.emailVerified,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + expirationSeconds,
     jti: generateId(),
 
     // User info
-    display_name: user.display_name,
-    avatar_url: user.avatar_url,
+    display_name: user.displayName ?? user.email.split("@")[0] ?? "user",
+    avatar_url: user.avatarUrl ?? undefined,
 
     // Permissions
     permissions: {
-      organizations,
+      organizations: orgPermissions,
       resources: [], // Will be populated when needed
     },
   };
@@ -150,15 +165,18 @@ export async function storeRefreshToken(
   expiresAt: number,
   env: Env
 ): Promise<string> {
+  const db = initDb(env);
   const tokenId = generateId();
   const now = Math.floor(Date.now() / 1000);
 
-  await env.DB.prepare(
-    `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?)`
-  )
-    .bind(tokenId, userId, tokenHash, expiresAt, now)
-    .run();
+  await db.insert(schema.refreshTokens).values({
+    id: tokenId,
+    userId: userId,
+    tokenHash: tokenHash,
+    expiresAt: expiresAt,
+    createdAt: now,
+    revokedAt: null,
+  });
 
   return tokenId;
 }
@@ -175,28 +193,31 @@ export async function verifyRefreshToken(
   token: string,
   env: Env
 ): Promise<string> {
+  const db = initDb(env);
   const tokenHash = await hashToken(token);
   const now = Math.floor(Date.now() / 1000);
 
-  const result = await env.DB.prepare(
-    `SELECT user_id, expires_at, revoked_at
-     FROM refresh_tokens
-     WHERE token_hash = ?
-     AND expires_at > ?
-     AND revoked_at IS NULL`
-  )
-    .bind(tokenHash, now)
-    .first<{
-      user_id: string;
-      expires_at: number;
-      revoked_at: number | null;
-    }>();
+  const result = await db
+    .select({
+      userId: schema.refreshTokens.userId,
+      expiresAt: schema.refreshTokens.expiresAt,
+      revokedAt: schema.refreshTokens.revokedAt,
+    })
+    .from(schema.refreshTokens)
+    .where(
+      and(
+        eq(schema.refreshTokens.tokenHash, tokenHash),
+        gt(schema.refreshTokens.expiresAt, now),
+        isNull(schema.refreshTokens.revokedAt)
+      )
+    )
+    .get();
 
   if (!result) {
     throw new Error("Invalid or expired refresh token");
   }
 
-  return result.user_id;
+  return result.userId;
 }
 
 /**
@@ -209,16 +230,14 @@ export async function revokeRefreshToken(
   token: string,
   env: Env
 ): Promise<void> {
+  const db = initDb(env);
   const tokenHash = await hashToken(token);
   const now = Math.floor(Date.now() / 1000);
 
-  await env.DB.prepare(
-    `UPDATE refresh_tokens
-     SET revoked_at = ?
-     WHERE token_hash = ?`
-  )
-    .bind(now, tokenHash)
-    .run();
+  await db
+    .update(schema.refreshTokens)
+    .set({ revokedAt: now })
+    .where(eq(schema.refreshTokens.tokenHash, tokenHash));
 }
 
 /**
@@ -231,14 +250,16 @@ export async function revokeAllRefreshTokens(
   userId: string,
   env: Env
 ): Promise<void> {
+  const db = initDb(env);
   const now = Math.floor(Date.now() / 1000);
 
-  await env.DB.prepare(
-    `UPDATE refresh_tokens
-     SET revoked_at = ?
-     WHERE user_id = ?
-     AND revoked_at IS NULL`
-  )
-    .bind(now, userId)
-    .run();
+  await db
+    .update(schema.refreshTokens)
+    .set({ revokedAt: now })
+    .where(
+      and(
+        eq(schema.refreshTokens.userId, userId),
+        isNull(schema.refreshTokens.revokedAt)
+      )
+    );
 }

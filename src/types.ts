@@ -1,8 +1,55 @@
 /**
- * Core TypeScript types for the authentication service
+ * Internal Backend Types
+ *
+ * Types used internally by the backend that are NOT part of the OpenAPI contract.
+ * These include JWT payloads and Cloudflare Worker bindings.
+ *
+ * For database types: Use Drizzle-inferred types from src/db/schema.ts
+ * For API types: Use Zod schemas in src/schemas/auth.schema.ts (backend)
+ * For frontend types: Use generated SDK types from demo-app/src/lib/api-client.d.ts
  */
 
-// Environment bindings for Cloudflare Workers
+// ============================================================================
+// JWT Token Payloads (Internal - Not exposed in API)
+// ============================================================================
+
+export interface AccessTokenPayload {
+  sub: string; // User ID
+  email: string;
+  email_verified: boolean;
+  iat: number;
+  exp: number;
+  jti: string;
+  display_name: string;
+  avatar_url?: string;
+  permissions?: {
+    organizations: Array<{
+      id: string;
+      role: string;
+      permissions: string[];
+    }>;
+    resources: Array<{
+      id: string;
+      type: string;
+      permissions: string[];
+    }>;
+  };
+}
+
+export interface RefreshTokenPayload {
+  sub: string; // User ID
+  jti: string;
+  iat: number;
+  exp: number;
+}
+
+// ============================================================================
+// Cloudflare Worker Environment Bindings
+// ============================================================================
+
+/**
+ * Cloudflare Worker Environment Bindings
+ */
 export interface Env {
   // D1 Database
   DB: D1Database;
@@ -12,146 +59,30 @@ export interface Env {
   TOKEN_BLACKLIST: KVNamespace;
   SESSION_CACHE: KVNamespace;
 
-  // AWS SES Credentials (for email sending)
-  AWS_ACCESS_KEY_ID?: string;
-  AWS_SECRET_ACCESS_KEY?: string;
-  AWS_REGION?: string;
-
   // Secrets
   JWT_SECRET: string;
-  JWT_ACCESS_EXPIRATION: string;
-  JWT_REFRESH_EXPIRATION: string;
+  JWT_ACCESS_EXPIRATION?: string; // seconds, defaults to 900 (15 minutes)
+  JWT_REFRESH_EXPIRATION?: string; // seconds, defaults to 604800 (7 days)
 
-  // OAuth Secrets
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  TWITTER_CLIENT_ID: string;
-  TWITTER_CLIENT_SECRET: string;
-  GITHUB_CLIENT_ID: string;
-  GITHUB_CLIENT_SECRET: string;
-
-  // Email Configuration (AWS SES)
-  EMAIL_FROM: string; // Verified sender email in AWS SES
-  EMAIL_REPLY_TO?: string;
-  FROM_NAME?: string;
+  // Email (AWS SES)
+  AWS_REGION: string;
+  AWS_ACCESS_KEY_ID: string;
+  AWS_SECRET_ACCESS_KEY: string;
+  EMAIL_FROM: string;
+  FROM_NAME: string;
 
   // App URLs
   APP_URL: string;
   API_URL: string;
 
   // Environment
-  ENVIRONMENT?: string;
+  ENVIRONMENT?: "development" | "production";
 
-  // Feature Flags
-  ENABLE_CUSTOM_DOMAINS?: string;
-  ENABLE_ANALYTICS?: string;
-  ENABLE_AUDIT_LOGGING?: string;
-}
-
-// User types
-export interface User {
-  id: string;
-  email: string;
-  password_hash?: string;
-  display_name: string;
-  avatar_url?: string;
-  email_verified: boolean;
-  created_at: number;
-  updated_at: number;
-  last_login_at?: number;
-  status: "active" | "suspended" | "deleted";
-  mfa_enabled: boolean;
-  mfa_secret?: string;
-  mfa_backup_codes?: string;
-  mfa_method?: "totp" | "sms" | "webauthn";
-}
-
-// Permission bitmap
-export interface PermissionBitmap {
-  low: bigint; // Permissions 0-63
-  high: bigint; // Permissions 64-127
-}
-
-// JWT payload
-export interface AccessTokenPayload {
-  // Standard claims
-  sub: string;
-  email: string;
-  email_verified: boolean;
-  iat: number;
-  exp: number;
-  jti: string;
-
-  // User info
-  display_name: string;
-  avatar_url?: string;
-
-  // Permissions
-  permissions: {
-    organizations: Array<{
-      id: string;
-      slug: string;
-      perms: {
-        low: string;
-        high: string;
-      };
-      is_owner: boolean;
-    }>;
-    resources?: Array<{
-      type: "team" | "repository" | "project";
-      id: string;
-      slug: string;
-      perms: {
-        low: string;
-        high: string;
-      };
-    }>;
-  };
-
-  grants?: string[];
-}
-
-// API Request/Response types
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  display_name: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  access_token: string;
-  token_type: "Bearer";
-  expires_in: number;
-  user: {
-    id: string;
-    email: string;
-    display_name: string;
-    avatar_url?: string;
-    email_verified: boolean;
-  };
-}
-
-export interface ErrorResponse {
-  error: string;
-  message: string;
-  details?: unknown;
-}
-
-// Domain configuration for multi-domain support
-export interface DomainConfig {
-  domain: string;
-  organizationId?: string;
-  teamId?: string;
-  customBranding?: {
-    logoUrl: string;
-    primaryColor: string;
-    companyName: string;
-  };
-  corsOrigins: string[];
-  emailFrom?: string;
+  // OAuth (Phase 6)
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  TWITTER_CLIENT_ID?: string;
+  TWITTER_CLIENT_SECRET?: string;
 }

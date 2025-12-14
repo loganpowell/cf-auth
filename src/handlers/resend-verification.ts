@@ -3,93 +3,90 @@
  *
  * POST /v1/auth/resend-verification
  * Resends the email verification email to a user
+ * Validation is handled by the OpenAPI route definition.
  */
 
-import { Hono } from "hono";
+import type { RouteHandler } from "@hono/zod-openapi";
 import type { Env } from "../types";
-import { z } from "zod";
-import { generateSecureToken, hashToken } from "../utils/crypto";
-import { sendVerificationEmail } from "../services/email";
-import { findUserByEmail } from "../db/queries";
-
-const app = new Hono<{ Bindings: Env }>();
-
-// Request validation schema
-const resendSchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
+import { resendVerificationRoute } from "../schemas/auth.schema";
+import { generateSecureToken } from "../utils/crypto";
+import {
+  sendVerificationEmail,
+  storeEmailVerificationToken,
+} from "../services/email.service";
+import { initDb, schema } from "../db";
+import { eq } from "drizzle-orm";
 
 /**
  * Resend verification email endpoint
+ * Data is pre-validated by OpenAPI route schema
  */
-app.post("/", async (c) => {
+export const handleResendVerification: RouteHandler<
+  typeof resendVerificationRoute,
+  { Bindings: Env }
+> = async (c) => {
   try {
-    // Parse and validate request body
-    const body = await c.req.json();
-    const validation = resendSchema.safeParse(body);
+    // Get validated data from OpenAPI middleware
+    const { email } = c.req.valid("json");
 
-    if (!validation.success) {
-      return c.json(
-        { error: validation.error.issues[0]?.message || "Invalid request" },
-        400
-      );
-    }
-
-    const { email } = validation.data;
+    const db = initDb(c.env);
 
     // Find the user
-    const user = await findUserByEmail(email, c.env);
+    const user = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email.toLowerCase()))
+      .get();
 
     if (!user) {
       // Don't reveal if email exists or not (security)
-      return c.json({
-        success: true,
-        message:
-          "If an account exists with this email, a verification email has been sent",
-      });
+      // Return same success message
+      return c.json(
+        {
+          message:
+            "If an account exists with this email, a verification email has been sent",
+        },
+        200
+      );
     }
 
     // Check if already verified
-    if (user.email_verified) {
+    if (user.emailVerified) {
       return c.json({ error: "Email is already verified" }, 400);
     }
 
     // Generate new verification token
     const verificationToken = generateSecureToken();
-    const tokenHash = await hashToken(verificationToken);
     const expiresAt = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours
 
-    // Invalidate any existing unused tokens for this user
-    await c.env.DB.prepare(
-      `UPDATE email_verification_tokens 
-       SET used_at = ? 
-       WHERE user_id = ? AND used_at IS NULL`
-    )
-      .bind(Math.floor(Date.now() / 1000), user.id)
-      .run();
-
-    // Store the new verification token
-    await c.env.DB.prepare(
-      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
-       VALUES (?, ?, ?, ?)`
-    )
-      .bind(user.id, tokenHash, expiresAt, Math.floor(Date.now() / 1000))
-      .run();
+    // Store the new verification token (this will delete any existing tokens)
+    await storeEmailVerificationToken(
+      user.id,
+      user.email,
+      verificationToken,
+      expiresAt,
+      c.env
+    );
 
     // Send verification email
     await sendVerificationEmail(user.email, verificationToken, c.env);
 
-    return c.json({
-      success: true,
-      message: "Verification email sent successfully",
-    });
+    // Return response matching OpenAPI schema
+    return c.json(
+      {
+        message: "Verification email sent successfully",
+      },
+      200
+    );
   } catch (error) {
     console.error("Resend verification error:", error);
+    // Return 400 for all errors (only status defined in schema besides 200)
     return c.json(
-      { error: "An error occurred while sending verification email" },
-      500
+      {
+        error: "Failed to send verification email",
+        message: "An error occurred while sending verification email",
+      },
+      400
     );
   }
-});
-
-export default app;
+};

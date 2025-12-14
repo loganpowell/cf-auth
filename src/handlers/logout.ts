@@ -54,17 +54,15 @@ export async function handleLogout(c: Context<{ Bindings: Env }>) {
       "refreshToken=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
     );
 
-    return c.json({
-      message: "Logout successful",
-    });
-  } catch (error) {
-    console.error("Logout error:", error);
     return c.json(
       {
-        error: "Internal server error",
-        message: "An unexpected error occurred during logout.",
+        message: "Logout successful",
       },
-      500
+      200
     );
+  } catch (error) {
+    console.error("Logout error:", error);
+    // Re-throw to let global error handler deal with it
+    throw error;
   }
 }

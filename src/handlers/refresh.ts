@@ -41,11 +41,13 @@ export async function handleRefresh(c: Context<{ Bindings: Env }>) {
       `refreshToken=${result.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
     );
 
-    // Return new access token
-    return c.json({
-      accessToken: result.accessToken,
-      message: "Token refreshed successfully",
-    });
+    // Return new access token (matching OpenAPI schema)
+    return c.json(
+      {
+        accessToken: result.accessToken,
+      },
+      200
+    );
   } catch (error) {
     if (error instanceof Error) {
       if (error.message.includes("Invalid or expired")) {
@@ -58,23 +60,16 @@ export async function handleRefresh(c: Context<{ Bindings: Env }>) {
           401
         );
       }
-
-      return c.json(
-        {
-          error: "Token refresh failed",
-          message: error.message,
-        },
-        400
-      );
     }
 
     console.error("Token refresh error:", error);
+    // For any other errors, return 401 (only status defined in schema)
     return c.json(
       {
-        error: "Internal server error",
-        message: "An unexpected error occurred during token refresh.",
+        error: "Token refresh failed",
+        message: "Unable to refresh token. Please log in again.",
       },
-      500
+      401
     );
   }
 }
