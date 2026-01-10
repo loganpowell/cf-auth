@@ -57,8 +57,14 @@ import {
   handleGetAuditTrail,
 } from "./handlers/permissions";
 
+// Import admin dashboard routes
+import { createAdminRouter } from "./routes/admin";
+
 // Create OpenAPIHono app with typed environment
 const app = new OpenAPIHono<{ Bindings: Env }>();
+
+// Create admin router for sub-app mounting
+const adminRouter = createAdminRouter();
 
 // Global CORS middleware
 app.use(
@@ -106,6 +112,10 @@ app.openapi(listRolesRoute, handleListRoles);
 app.openapi(getRoleRoute, handleGetRole);
 app.openapi(getUserPermissionsRoute, handleGetUserPermissions);
 app.openapi(getAuditTrailRoute, handleGetAuditTrail);
+
+// Admin Dashboard routes (Phase 2)
+// All admin routes require platform admin API key (type=secret, tenant=relish-platform)
+app.route("/admin", adminRouter);
 
 // Generate OpenAPI spec endpoint
 app.doc("/openapi.json", {
