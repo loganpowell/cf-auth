@@ -11,10 +11,9 @@
  * 4. Query param: ?tenant_id=tenant:acme-corp (fallback)
  */
 
-import { Router } from "hono";
-import { Context } from "hono";
-import { Database } from "better-sqlite3";
-import { Tenant } from "../db/schema";
+import type { Context } from "hono";
+import type { D1Database } from "@cloudflare/workers-types";
+import type { Tenant } from "../db/schema";
 
 export interface TenantContext {
   tenantId: string; // "tenant:acme-corp"
@@ -34,17 +33,17 @@ export interface RequestWithTenant extends Context {
  */
 export async function extractTenant(
   request: Request,
-  env: any,
-  db: Database
+  db: D1Database
 ): Promise<TenantContext> {
   const url = new URL(request.url);
 
   // Strategy 1: X-Tenant-ID header (explicit tenant override, for testing/admin)
   const tenantIdHeader = request.headers.get("X-Tenant-ID");
   if (tenantIdHeader) {
-    const tenant = db
-      .prepare("SELECT * FROM tenants WHERE id = ?")
-      .get(tenantIdHeader) as Tenant | undefined;
+    const stmt = db.prepare("SELECT * FROM tenants WHERE id = ?");
+    const tenant = (await stmt.bind(tenantIdHeader).first()) as
+      | Tenant
+      | undefined;
     return {
       tenantId: tenantIdHeader,
       slug: tenant?.slug || "",
@@ -60,9 +59,10 @@ export async function extractTenant(
   const subdomainMatch = hostname.match(/^([a-z0-9-]+)\./);
   if (subdomainMatch && !isMainDomain(hostname)) {
     const slug = subdomainMatch[1];
-    const tenant = db
-      .prepare("SELECT * FROM tenants WHERE slug = ?")
-      .get(slug) as Tenant | undefined;
+    if (!slug) throw new Error("Invalid slug extracted from hostname");
+
+    const stmt = db.prepare("SELECT * FROM tenants WHERE slug = ?");
+    const tenant = (await stmt.bind(slug).first()) as Tenant | undefined;
 
     return {
       tenantId: tenant?.id || `tenant:${slug}`,
@@ -78,14 +78,16 @@ export async function extractTenant(
   const authHeader = request.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const keyPrefix = authHeader.slice(7); // Remove "Bearer "
-    const apiKey = db
-      .prepare("SELECT * FROM api_keys WHERE key_prefix = ? AND revoked_at IS NULL")
-      .get(keyPrefix) as any | undefined;
+    const stmt = db.prepare(
+      "SELECT * FROM api_keys WHERE key_prefix = ? AND revoked_at IS NULL"
+    );
+    const apiKey = (await stmt.bind(keyPrefix).first()) as any | undefined;
 
     if (apiKey) {
-      const tenant = db
-        .prepare("SELECT * FROM tenants WHERE id = ?")
-        .get(apiKey.tenant_id) as Tenant | undefined;
+      const tenantStmt = db.prepare("SELECT * FROM tenants WHERE id = ?");
+      const tenant = (await tenantStmt.bind(apiKey.tenant_id).first()) as
+        | Tenant
+        | undefined;
 
       return {
         tenantId: apiKey.tenant_id,
@@ -109,9 +111,8 @@ export async function extractTenant(
   // Strategy 4: Query parameter (fallback for testing)
   const tenantParam = url.searchParams.get("tenant_id");
   if (tenantParam) {
-    const tenant = db
-      .prepare("SELECT * FROM tenants WHERE id = ?")
-      .get(tenantParam) as Tenant | undefined;
+    const stmt = db.prepare("SELECT * FROM tenants WHERE id = ?");
+    const tenant = (await stmt.bind(tenantParam).first()) as Tenant | undefined;
 
     return {
       tenantId: tenantParam,
@@ -136,9 +137,9 @@ export async function extractTenant(
  * Middleware: Attach tenant context to request
  * Must be applied before any route handlers
  */
-export function tenantRouterMiddleware(db: Database) {
+export function tenantRouterMiddleware(db: D1Database) {
   return async (c: Context, next: any) => {
-    const tenant = await extractTenant(c.req.raw, c.env, db);
+    const tenant = await extractTenant(c.req.raw, db);
 
     // Attach to context
     (c as any).tenant = tenant;
@@ -208,7 +209,7 @@ export function requireAPIKey() {
 export function requireKeyType(type: "public" | "secret" | "restricted") {
   return async (c: Context, next: any) => {
     const tenant = (c as any).tenant as TenantContext | undefined;
-    const db = (c as any).db as Database;
+    const db = (c as any).db as D1Database;
 
     if (!tenant?.apiKeyId) {
       return c.json(
@@ -220,9 +221,10 @@ export function requireKeyType(type: "public" | "secret" | "restricted") {
       );
     }
 
-    const apiKey = db
-      .prepare("SELECT type FROM api_keys WHERE id = ?")
-      .get(tenant.apiKeyId) as any | undefined;
+    const stmt = db.prepare("SELECT type FROM api_keys WHERE id = ?");
+    const apiKey = (await stmt.bind(tenant.apiKeyId).first()) as
+      | any
+      | undefined;
 
     if (!apiKey || apiKey.type !== type) {
       return c.json(
@@ -269,12 +271,10 @@ function isPlatformAPI(path: string): boolean {
 
 /**
  * Create a tenant router for organizing tenant-specific routes
+ * @deprecated: Use Hono's built-in routing with tenantRouterMiddleware instead
  */
 export function createTenantRouter() {
-  const router = new Router();
-
-  router.use(requireTenant());
-
-  // Routes added to this router will have tenant context
-  return router;
+  // This function would create a sub-router with tenant middleware already applied
+  // For now, use Hono's standard routing: app.use('/path', tenantRouterMiddleware(db), handler)
+  return null;
 }

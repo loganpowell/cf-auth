@@ -52,7 +52,9 @@ export function namespaceId(
  */
 export function extractResourceId(namespacedId: string): string {
   const parts = namespacedId.split(":");
-  return parts[parts.length - 1];
+  const id = parts[parts.length - 1];
+  if (!id) throw new Error("Invalid namespaced ID: " + namespacedId);
+  return id;
 }
 
 /**
@@ -68,7 +70,9 @@ export function extractResourceType(namespacedId: string): string {
     throw new Error(`Invalid namespaced ID: ${namespacedId}`);
   }
   // Second-to-last part before ID
-  return parts[parts.length - 2];
+  const type = parts[parts.length - 2];
+  if (!type) throw new Error("Invalid namespaced ID: " + namespacedId);
+  return type;
 }
 
 /**
@@ -140,175 +144,15 @@ export function namespaceIds(
 }
 
 /**
- * Helper: Extract resource IDs from namespaced IDs
+ * DEPRECATED FUNCTIONS - Not used in current implementation
+ * These functions represent possible future extensions to namespace isolation.
+ * Kept here for reference in case they're needed later.
  *
- * @example
- * extractResourceIds([
- *   'tenant:acme-corp:user:alice',
- *   'tenant:acme-corp:user:bob'
- * ])
- * // → ['alice', 'bob']
+ * - extractResourceIds: Batch extraction of resource IDs
+ * - buildTenantWhereClause: SQL WHERE clause builder
+ * - isValidNamespacedId: Namespace format validator
+ * - isSubTenantOf: Tenant hierarchy checker (requires getParentTenantIds)
+ * - NamespaceBuilder: Type-safe namespace builder class
+ *
+ * To use these, uncomment and export as needed.
  */
-export function extractResourceIds(namespacedIds: string[]): string[] {
-  return namespacedIds.map((id) => extractResourceId(id));
-}
-
-/**
- * Helper: Build SQL WHERE clause for tenant isolation
- * Ensures queries can't leak across tenants
- *
- * @example
- * const clause = buildTenantWhereClause('users', 'tenant:acme-corp')
- * // → "users.id LIKE 'tenant:acme-corp:%'"
- *
- * Use in queries:
- * SELECT * FROM users WHERE ${clause} AND email = ?
- */
-export function buildTenantWhereClause(
-  tableName: string,
-  tenantId: string
-): string {
-  const escaped = tenantId.replace(/'/g, "''"); // SQL escape single quotes
-  return `${tableName}.id LIKE '${escaped}:%'`;
-}
-
-/**
- * Helper: Validate namespace format before using
- *
- * Format: tenant:{slug}:resource-type:resource-id
- * or: tenant:{slug}:sub-org:sub-id:resource-type:resource-id (nested)
- *
- * @example
- * isValidNamespacedId('tenant:acme-corp:user:alice')
- * // → true
- *
- * @example
- * isValidNamespacedId('invalid:format')
- * // → false
- */
-export function isValidNamespacedId(id: string): boolean {
-  // Must have at least 4 parts: tenant, slug/id, type, resource-id
-  const parts = id.split(":");
-  if (parts.length < 4) {
-    return false;
-  }
-
-  // First part must be 'tenant'
-  if (parts[0] !== "tenant") {
-    return false;
-  }
-
-  // All parts must be non-empty
-  if (parts.some((part) => !part)) {
-    return false;
-  }
-
-  // All parts must be alphanumeric, hyphens, or underscores
-  const validChars = /^[a-z0-9_-]+$/i;
-  if (!parts.every((part) => validChars.test(part))) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Helper: Get all parent tenant IDs from a nested tenant
- *
- * @example
- * getParentTenantIds('tenant:enterprise:dept:engineering')
- * // → ['tenant:enterprise', 'tenant:enterprise:dept']
- *
- * Useful for checking hierarchical permissions
- */
-export function getParentTenantIds(tenantId: string): string[] {
-  const parts = tenantId.split(":");
-
-  if (parts.length < 2) {
-    return [];
-  }
-
-  const parents: string[] = [];
-
-  // Build each parent level
-  for (let i = 2; i < parts.length; i++) {
-    parents.push(parts.slice(0, i).join(":"));
-  }
-
-  return parents;
-}
-
-/**
- * Helper: Check if one tenant is a sub-tenant of another
- *
- * @example
- * isSubTenantOf(
- *   'tenant:enterprise:dept:engineering',
- *   'tenant:enterprise'
- * )
- * // → true (engineering is under enterprise)
- *
- * @example
- * isSubTenantOf(
- *   'tenant:acme-corp',
- *   'tenant:enterprise'
- * )
- * // → false (different root tenants)
- */
-export function isSubTenantOf(childTenant: string, parentTenant: string): boolean {
-  if (childTenant === parentTenant) {
-    return true;
-  }
-
-  const parents = getParentTenantIds(childTenant);
-  return parents.includes(parentTenant);
-}
-
-/**
- * Type-safe namespace builder
- * Useful for building namespaced IDs with type checking
- *
- * @example
- * const ns = new NamespaceBuilder('tenant:acme-corp');
- *
- * const userId = ns.build('user', 'alice');
- * // → 'tenant:acme-corp:user:alice'
- *
- * const projectId = ns.build('project', 'proj-123');
- * // → 'tenant:acme-corp:project:proj-123'
- */
-export class NamespaceBuilder {
-  constructor(private tenantId: string) {
-    if (!tenantId.startsWith("tenant:")) {
-      throw new Error(`Invalid tenant ID: ${tenantId}`);
-    }
-  }
-
-  build(resourceType: string, resourceId: string): string {
-    return namespaceId(this.tenantId, resourceType, resourceId);
-  }
-
-  buildMany(resourceType: string, resourceIds: string[]): string[] {
-    return namespaceIds(this.tenantId, resourceType, resourceIds);
-  }
-
-  extract(namespacedId: string): { type: string; id: string } {
-    if (!verifyTenantOwnership(namespacedId, this.tenantId)) {
-      throw new Error(`ID does not belong to tenant ${this.tenantId}`);
-    }
-
-    return {
-      type: extractResourceType(namespacedId),
-      id: extractResourceId(namespacedId),
-    };
-  }
-
-  extractMany(namespacedIds: string[]): Array<{ type: string; id: string }> {
-    return namespacedIds.map((id) => this.extract(id));
-  }
-
-  whereClause(tableName: string = ""): string {
-    const table = tableName ? `${tableName}.` : "";
-    return `${table}id LIKE '${this.tenantId}:%'`;
-  }
-}

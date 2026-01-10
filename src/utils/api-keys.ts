@@ -9,7 +9,7 @@
  */
 
 import { createHash, randomBytes } from "crypto";
-import { Database } from "better-sqlite3";
+import type { D1Database } from "@cloudflare/workers-types";
 import { APIKey } from "../db/schema";
 
 export type APIKeyType = "public" | "secret" | "restricted";
@@ -93,15 +93,15 @@ export function hashAPIKey(keyPrefix: string, keySecret?: string): string {
 /**
  * Save API key to database
  */
-export function saveAPIKey(
-  db: Database,
+export async function saveAPIKey(
+  db: D1Database,
   options: APIKeyGenOptions,
   generated: ReturnType<typeof generateAPIKey>
-): APIKey {
+): Promise<APIKey> {
   const now = Math.floor(Date.now() / 1000);
   const keyHash = hashAPIKey(generated.keyPrefix, generated.keySecret);
 
-  const stmt = db.prepare(
+  const stmt = await db.prepare(
     `
     INSERT INTO api_keys (
       id, tenant_id, key_prefix, key_hash, name,
@@ -110,21 +110,22 @@ export function saveAPIKey(
   `
   );
 
-  stmt.run(
-    generated.keyId,
-    options.tenantId,
-    generated.keyPrefix,
-    keyHash,
-    options.name,
-    options.type,
-    options.environment,
-    options.permissions ? JSON.stringify(options.permissions) : null,
-    now
-  );
+  await stmt
+    .bind(
+      generated.keyId,
+      options.tenantId,
+      generated.keyPrefix,
+      keyHash,
+      options.name,
+      options.type,
+      options.environment,
+      options.permissions ? JSON.stringify(options.permissions) : null,
+      now
+    )
+    .run();
 
-  return db
-    .prepare("SELECT * FROM api_keys WHERE id = ?")
-    .get(generated.keyId) as APIKey;
+  const selectStmt = db.prepare("SELECT * FROM api_keys WHERE id = ?");
+  return (await selectStmt.bind(generated.keyId).first()) as APIKey;
 }
 
 /**
@@ -132,21 +133,20 @@ export function saveAPIKey(
  *
  * For secret keys, also requires the secret component for validation
  */
-export function validateAPIKey(
-  db: Database,
+export async function validateAPIKey(
+  db: D1Database,
   keyPrefix: string,
   keySecret?: string
-): APIKeyValidationResult {
+): Promise<APIKeyValidationResult> {
   // Find the API key by prefix
-  const apiKey = db
-    .prepare(
-      `
+  const stmt = db.prepare(
+    `
     SELECT * FROM api_keys
     WHERE key_prefix = ? AND revoked_at IS NULL
     LIMIT 1
   `
-    )
-    .get(keyPrefix) as any | undefined;
+  );
+  const apiKey = (await stmt.bind(keyPrefix).first()) as any | undefined;
 
   if (!apiKey) {
     return {
@@ -167,10 +167,10 @@ export function validateAPIKey(
   }
 
   // Update last_used_at
-  db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").run(
-    Math.floor(Date.now() / 1000),
-    apiKey.id
-  );
+  await db
+    .prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
+    .bind(Math.floor(Date.now() / 1000), apiKey.id)
+    .run();
 
   return {
     valid: true,
@@ -191,36 +191,37 @@ export function hasPermission(apiKey: APIKey, permission: string): boolean {
 
   // Check exact match or wildcard
   return permissions.some(
-    (p) => p === permission || p === "*" || p === `${permission.split(":")[0]}:*`
+    (p) =>
+      p === permission || p === "*" || p === `${permission.split(":")[0]}:*`
   );
 }
 
 /**
  * Revoke an API key (soft delete)
  */
-export function revokeAPIKey(db: Database, apiKeyId: string): void {
-  db.prepare("UPDATE api_keys SET revoked_at = ? WHERE id = ?").run(
-    Math.floor(Date.now() / 1000),
-    apiKeyId
-  );
+export async function revokeAPIKey(
+  db: D1Database,
+  apiKeyId: string
+): Promise<void> {
+  const stmt = db.prepare("UPDATE api_keys SET revoked_at = ? WHERE id = ?");
+  await stmt.bind(Math.floor(Date.now() / 1000), apiKeyId).run();
 }
 
 /**
  * Rotate an API key (generate new, revoke old)
  */
-export function rotateAPIKey(
-  db: Database,
+export async function rotateAPIKey(
+  db: D1Database,
   oldApiKeyId: string,
   options: Omit<APIKeyGenOptions, "tenantId">
-): {
+): Promise<{
   keyId: string;
   keyPrefix: string;
   keySecret?: string;
-} {
+}> {
   // Get the old key to find tenant
-  const oldKey = db.prepare("SELECT * FROM api_keys WHERE id = ?").get(
-    oldApiKeyId
-  ) as any;
+  const stmt = db.prepare("SELECT * FROM api_keys WHERE id = ?");
+  const oldKey = (await stmt.bind(oldApiKeyId).first()) as any;
 
   if (!oldKey) {
     throw new Error(`API key not found: ${oldApiKeyId}`);
@@ -267,6 +268,7 @@ export function extractAPIKeyFromRequest(request: Request): {
     const token = authHeader.slice(7);
     // Check if it's a secret key (has a colon separator)
     const [keyPrefix, keySecret] = token.split(":");
+    if (!keyPrefix) return null;
     return {
       keyPrefix,
       keySecret: keySecret ? keySecret : undefined,
@@ -277,6 +279,7 @@ export function extractAPIKeyFromRequest(request: Request): {
   const apiKeyHeader = request.headers.get("X-API-Key");
   if (apiKeyHeader) {
     const [keyPrefix, keySecret] = apiKeyHeader.split(":");
+    if (!keyPrefix) return null;
     return {
       keyPrefix,
       keySecret: keySecret ? keySecret : undefined,
@@ -288,6 +291,7 @@ export function extractAPIKeyFromRequest(request: Request): {
   const apiKeyParam = url.searchParams.get("api_key");
   if (apiKeyParam) {
     const [keyPrefix, keySecret] = apiKeyParam.split(":");
+    if (!keyPrefix) return null;
     return {
       keyPrefix,
       keySecret: keySecret ? keySecret : undefined,
@@ -301,25 +305,25 @@ export function extractAPIKeyFromRequest(request: Request): {
  * Middleware: Validate API key from request
  * Attaches validated key and tenant to request context
  */
-export function apiKeyAuthMiddleware(db: Database) {
+export function apiKeyAuthMiddleware(db: D1Database) {
   return async (c: any, next: any) => {
     const credentials = extractAPIKeyFromRequest(c.req.raw);
 
     if (credentials) {
-      const validation = validateAPIKey(
+      const validation = await validateAPIKey(
         db,
         credentials.keyPrefix,
         credentials.keySecret
       );
 
-      if (validation.valid) {
+      if (validation && validation.valid) {
         c.apiKey = validation.apiKey;
         c.tenantId = validation.tenantId;
       } else {
         return c.json(
           {
             error: "INVALID_API_KEY",
-            message: validation.error,
+            message: validation?.error || "Invalid API key",
           },
           { status: 401 }
         );
@@ -333,16 +337,19 @@ export function apiKeyAuthMiddleware(db: Database) {
 /**
  * Helper: List all API keys for a tenant (excluding secrets)
  */
-export function listTenantAPIKeys(db: Database, tenantId: string): APIKey[] {
-  return db
-    .prepare(
-      `
+export async function listTenantAPIKeys(
+  db: D1Database,
+  tenantId: string
+): Promise<APIKey[]> {
+  const stmt = db.prepare(
+    `
     SELECT * FROM api_keys
     WHERE tenant_id = ?
     ORDER BY created_at DESC
   `
-    )
-    .all(tenantId) as APIKey[];
+  );
+  const results = (await stmt.bind(tenantId).all()) as any;
+  return results.results as APIKey[];
 }
 
 /**
