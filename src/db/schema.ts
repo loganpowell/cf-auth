@@ -1,373 +1,399 @@
 /**
- * Drizzle ORM Database Schema
+ * Relish Multi-Tenant Database Schema
  *
- * This file defines the database schema using Drizzle ORM.
- * Types are automatically inferred from the schema definition.
+ * ARCHITECTURE:
+ * 1. PLATFORM INFRASTRUCTURE (hardcoded SQL)
+ *    - Manages tenants, admins, API keys, schema versioning
+ *    - Fixed schema controlled by Relish team
  *
- * To use these types:
- * ```ts
- * import { users } from "./db/schema";
- * type User = typeof users.$inferSelect;
- * type NewUser = typeof users.$inferInsert;
- * ```
+ * 2. PLATFORM PERMISSIONS (dogfooted with Relish's own auth)
+ *    - Defined in platform-schema.yaml
+ *    - Uses KuzuDB authorization graph for access control
+ *    - Who can do what to platform resources
+ *
+ * 3. TENANT DATA SCHEMAS (YAML → Drizzle → D1)
+ *    - Each tenant defines their data structure via schema.yaml
+ *    - Compiled to Drizzle table definitions
+ *    - Applied as migrations to tenant's D1 database
+ *
+ * 4. TENANT PERMISSIONS (tenant-specific dogfooding)
+ *    - Each tenant's schema.yaml includes permission definitions
+ *    - Their own KuzuDB graph for resource access
+ *
+ * This file only contains the PLATFORM INFRASTRUCTURE layer.
+ * Tenant data is schema-driven and versioned in tenantDataSchemas.
  */
 
 import {
   sqliteTable,
   text,
   integer,
+  real,
   index,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+// ==============================================================================
+// PLATFORM INFRASTRUCTURE TABLES
+// ==============================================================================
+
 // ============================================================================
-// Users Table
+// Tenants - Customer organizations using Relish
 // ============================================================================
 
-export const users = sqliteTable(
-  "users",
+export const tenants = sqliteTable(
+  "tenants",
   {
-    id: text("id").primaryKey(),
+    // Primary key and identification
+    id: text("id").primaryKey(), // "tenant:acme-corp"
+    slug: text("slug").notNull().unique(), // "acme-corp" (for subdomain routing)
+    name: text("name").notNull(),
+
+    // Hierarchy support (graph-of-graphs)
+    parentId: text("parent_id"), // NULL for root tenants, references tenants.id for children
+    depth: integer("depth").notNull().default(0), // 0 = root, 1+ = nested
+
+    // Subscription and status
+    plan: text("plan", { enum: ["free", "pro", "enterprise"] })
+      .notNull()
+      .default("free"),
+    status: text("status", {
+      enum: ["active", "suspended", "deleted"],
+    })
+      .notNull()
+      .default("active"),
+
+    // API credentials (public/secret for OAuth and APIs)
+    publicKey: text("public_key").notNull().unique(), // pk_live_xxx
+    secretKey: text("secret_key").notNull().unique(), // sk_live_xxx (encrypted)
+
+    // Tenant branding and configuration
+    branding: text("branding"), // JSON: {logo, colors, customDomain, etc}
+
+    // Limits (enforced by middleware)
+    limits: text("limits"), // JSON: {maxUsers, maxSchemaSize, maxRequests, etc}
+
+    // Schema versioning (points to current active schema)
+    schemaVersion: text("schema_version").default("1.0.0"),
+
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_tenants_slug").on(table.slug),
+    index("idx_tenants_parent").on(table.parentId),
+    index("idx_tenants_status").on(table.status),
+    index("idx_tenants_plan").on(table.plan),
+    index("idx_tenants_depth").on(table.depth),
+  ]
+);
+
+// ============================================================================
+// Platform Admins - Relish employees with platform access
+// ============================================================================
+
+export const platformAdmins = sqliteTable(
+  "platform_admins",
+  {
+    id: text("id").primaryKey(), // "admin:logan"
     email: text("email").notNull().unique(),
-    passwordHash: text("password_hash"), // NULL for OAuth-only accounts
-    emailVerified: integer("email_verified", { mode: "boolean" })
+    name: text("name").notNull(),
+
+    // Role determines permissions (defined in platform-schema.yaml)
+    role: text("role", {
+      enum: ["superadmin", "support", "billing", "readonly"],
+    })
       .notNull()
-      .default(false),
-    displayName: text("display_name"), // Optional - defaults to email prefix if not set
-    avatarUrl: text("avatar_url"), // Optional - user profile picture URL
-    createdAt: integer("created_at").notNull(), // Unix timestamp (seconds)
-    updatedAt: integer("updated_at").notNull(), // Unix timestamp (seconds)
-    lastLoginAt: integer("last_login_at"), // Unix timestamp (seconds)
+      .default("readonly"),
+
+    // Auth
+    passwordHash: text("password_hash"), // For platform admin panel login
     status: text("status", { enum: ["active", "suspended"] })
       .notNull()
       .default("active"),
+
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+    lastLoginAt: integer("last_login_at"),
   },
   (table) => [
-    uniqueIndex("idx_users_email").on(table.email),
-    index("idx_users_created_at").on(table.createdAt),
+    uniqueIndex("idx_platform_admins_email").on(table.email),
+    index("idx_platform_admins_role").on(table.role),
   ]
 );
 
 // ============================================================================
-// Email Verification Tokens
+// Platform Admin → Tenant Permissions (graph edges in authorization)
 // ============================================================================
 
-export const emailVerificationTokens = sqliteTable(
-  "email_verification_tokens",
+export const platformAdminTenantPermissions = sqliteTable(
+  "platform_admin_tenant_permissions",
+  {
+    adminId: text("admin_id")
+      .notNull()
+      .references(() => platformAdmins.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Permission is the edge type (e.g., "manages" with sub-permissions)
+    permission: text("permission").notNull(), // "manage", "view", "support"
+
+    grantedAt: integer("granted_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_admin_tenant_perm").on(table.adminId, table.tenantId),
+    index("idx_admin_perm").on(table.adminId),
+    index("idx_tenant_admin").on(table.tenantId),
+  ]
+);
+
+// ============================================================================
+// API Keys - Tenant credentials (public/secret for their apps)
+// ============================================================================
+
+export const apiKeys = sqliteTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey(), // "key:abc123"
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Key identification and format
+    keyPrefix: text("key_prefix").notNull(), // "pk_live_abc123def456"
+    keyHash: text("key_hash").notNull(), // SHA256 hash (stored, not original key)
+    name: text("name").notNull(), // "Production API Key" or "Mobile App Key"
+
+    // Key properties
+    type: text("type", { enum: ["public", "secret", "restricted"] })
+      .notNull(),
+    environment: text("environment", { enum: ["test", "live"] })
+      .notNull(),
+    permissions: text("permissions"), // JSON: scopes/permissions granted to this key
+
+    // Lifecycle
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at"),
+    revokedAt: integer("revoked_at"), // NULL = active, set = revoked
+  },
+  (table) => [
+    uniqueIndex("idx_api_key_prefix").on(table.keyPrefix),
+    index("idx_api_key_tenant").on(table.tenantId),
+    index("idx_api_key_revoked").on(table.revokedAt),
+  ]
+);
+
+// ============================================================================
+// Tenant Data Schemas - YAML schemas that tenants upload to define their data
+// ============================================================================
+
+export const tenantDataSchemas = sqliteTable(
+  "tenant_data_schemas",
+  {
+    id: text("id").primaryKey(), // "schema:acme-corp:1.0.0"
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Versioning (semantic versioning)
+    version: text("version").notNull(), // "1.0.0", "2.1.3"
+    isActive: integer("is_active", { mode: "boolean" })
+      .notNull()
+      .default(false), // Only one version active per tenant
+
+    // Schema content
+    yamlContent: text("yaml_content").notNull(), // The actual YAML schema
+    yamlHash: text("yaml_hash").notNull(), // SHA256 hash for change detection
+
+    // Compilation results
+    compiledDrizzleTypes: text("compiled_drizzle_types"), // Generated TypeScript types
+    compiledValidators: text("compiled_validators"), // Runtime validators (Zod, etc)
+    compilationStatus: text("compilation_status", {
+      enum: ["pending", "compiling", "success", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    compilationError: text("compilation_error"), // Error message if compilation failed
+
+    // Metadata
+    sizeKb: real("size_kb"), // For quotas
+    entityCount: integer("entity_count"), // Number of entities defined
+    relationshipCount: integer("relationship_count"), // Number of relationships
+
+    // Timestamps
+    publishedAt: integer("published_at").notNull(),
+    activatedAt: integer("activated_at"), // When this version became active
+  },
+  (table) => [
+    uniqueIndex("idx_schema_version").on(table.tenantId, table.version),
+    index("idx_schema_active").on(table.tenantId, table.isActive),
+    index("idx_schema_status").on(table.compilationStatus),
+  ]
+);
+
+// ============================================================================
+// Usage Metrics - Billing and quota tracking per tenant
+// ============================================================================
+
+export const usageMetrics = sqliteTable(
+  "usage_metrics",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    tenantId: text("tenant_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    token: text("token").notNull().unique(),
-    email: text("email").notNull(),
-    expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
-    createdAt: integer("created_at").notNull(), // Unix timestamp (seconds)
-  },
-  (table) => [
-    uniqueIndex("idx_email_verification_token").on(table.token),
-    index("idx_email_verification_user").on(table.userId),
-  ]
-);
+      .references(() => tenants.id, { onDelete: "cascade" }),
 
-// ============================================================================
-// Password Reset Tokens
-// ============================================================================
-
-export const passwordResetTokens = sqliteTable(
-  "password_reset_tokens",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    token: text("token").notNull().unique(),
-    expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
-    usedAt: integer("used_at"), // Unix timestamp (seconds)
-    createdAt: integer("created_at").notNull(), // Unix timestamp (seconds)
-  },
-  (table) => [
-    uniqueIndex("idx_password_reset_token").on(table.token),
-    index("idx_password_reset_user").on(table.userId),
-  ]
-);
-
-// ============================================================================
-// Refresh Tokens (Not in SQL schema yet, but used in current implementation)
-// ============================================================================
-
-export const refreshTokens = sqliteTable(
-  "refresh_tokens",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: integer("expires_at").notNull(), // Unix timestamp (seconds)
-    createdAt: integer("created_at").notNull(), // Unix timestamp (seconds)
-    revokedAt: integer("revoked_at"), // Unix timestamp (seconds)
-  },
-  (table) => [
-    index("idx_refresh_tokens_user").on(table.userId),
-    index("idx_refresh_tokens_hash").on(table.tokenHash),
-  ]
-);
-
-// ============================================================================
-// Organizations (Phase 4+)
-// ============================================================================
-
-export const organizations = sqliteTable(
-  "organizations",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    ownerUserId: text("owner_user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-    status: text("status", { enum: ["active", "suspended"] })
-      .notNull()
-      .default("active"),
-  },
-  (table) => [
-    uniqueIndex("idx_organizations_slug").on(table.slug),
-    index("idx_organizations_owner").on(table.ownerUserId),
-  ]
-);
-
-// ============================================================================
-// Teams (Phase 4+)
-// ============================================================================
-
-export const teams = sqliteTable(
-  "teams",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organizations.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    slug: text("slug").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-    status: text("status", { enum: ["active", "suspended"] })
-      .notNull()
-      .default("active"),
-  },
-  (table) => [
-    index("idx_teams_org").on(table.organizationId),
-    uniqueIndex("idx_teams_slug").on(table.organizationId, table.slug),
-  ]
-);
-
-// ============================================================================
-// OAuth Providers (Phase 6)
-// ============================================================================
-
-export const oauthProviders = sqliteTable(
-  "oauth_providers",
-  {
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    provider: text("provider").notNull(), // 'github', 'google', 'twitter'
-    providerUserId: text("provider_user_id").notNull(),
-    providerUsername: text("provider_username"),
-    providerEmail: text("provider_email"),
-    accessToken: text("access_token"), // Encrypted
-    refreshToken: text("refresh_token"), // Encrypted
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    uniqueIndex("pk_oauth_providers").on(table.userId, table.provider),
-    uniqueIndex("idx_oauth_provider_user").on(
-      table.provider,
-      table.providerUserId
-    ),
-  ]
-);
-
-// ============================================================================
-// Roles (Phase 4)
-// ============================================================================
-
-export const roles = sqliteTable(
-  "roles",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    description: text("description"),
-    // Permission bitmap stored as two text fields (can hold bigint as string)
-    permissionsLow: text("permissions_low").notNull().default("0"), // Bits 0-63
-    permissionsHigh: text("permissions_high").notNull().default("0"), // Bits 64-127
-    isSystem: integer("is_system", { mode: "boolean" })
-      .notNull()
-      .default(false), // System roles cannot be deleted
-    organizationId: text("organization_id").references(() => organizations.id, {
-      onDelete: "cascade",
-    }), // NULL = global system role
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("idx_roles_org").on(table.organizationId),
-    index("idx_roles_system").on(table.isSystem),
-  ]
-);
-
-// ============================================================================
-// Role Assignments (Phase 4)
-// ============================================================================
-
-export const roleAssignments = sqliteTable(
-  "role_assignments",
-  {
-    id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    roleId: text("role_id")
-      .notNull()
-      .references(() => roles.id, { onDelete: "cascade" }),
-    organizationId: text("organization_id").references(() => organizations.id, {
-      onDelete: "cascade",
-    }), // NULL = global assignment
-    teamId: text("team_id").references(() => teams.id, {
-      onDelete: "cascade",
-    }), // NULL = org-level assignment
-    grantedBy: text("granted_by")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }), // Who granted this role
-    expiresAt: integer("expires_at", { mode: "timestamp_ms" }), // NULL = no expiration
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-  },
-  (table) => [
-    index("idx_role_assignments_user").on(table.userId),
-    index("idx_role_assignments_role").on(table.roleId),
-    index("idx_role_assignments_org").on(table.organizationId),
-    index("idx_role_assignments_team").on(table.teamId),
-    uniqueIndex("idx_role_assignments_unique").on(
-      table.userId,
-      table.roleId,
-      table.organizationId,
-      table.teamId
-    ),
-  ]
-);
-
-// ============================================================================
-// Permission Audit (Phase 4)
-// ============================================================================
-
-export const permissionAudit = sqliteTable(
-  "permission_audit",
-  {
-    id: text("id").primaryKey(),
-    action: text("action", {
-      enum: ["grant", "revoke", "role_create", "role_update", "role_delete"],
+    // What's being measured
+    metricType: text("metric_type", {
+      enum: [
+        "auth_requests",
+        "authz_queries",
+        "api_calls",
+        "storage_mb",
+        "schema_updates",
+      ],
     }).notNull(),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }), // Who performed the action
-    targetUserId: text("target_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }), // Who was affected
-    roleId: text("role_id").references(() => roles.id, {
-      onDelete: "set null",
-    }),
-    organizationId: text("organization_id").references(() => organizations.id, {
-      onDelete: "cascade",
-    }),
-    teamId: text("team_id").references(() => teams.id, {
-      onDelete: "cascade",
-    }),
-    metadata: text("metadata"), // JSON - additional context
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+
+    // The count
+    count: integer("count").notNull().default(0),
+
+    // Time period (hourly buckets for efficiency)
+    periodStart: integer("period_start").notNull(), // Hour boundary
+    periodEnd: integer("period_end").notNull(),
+
+    // Timestamps
+    recordedAt: integer("recorded_at").notNull(),
   },
   (table) => [
-    index("idx_permission_audit_actor").on(table.actorUserId),
-    index("idx_permission_audit_target").on(table.targetUserId),
-    index("idx_permission_audit_org").on(table.organizationId),
-    index("idx_permission_audit_created").on(table.createdAt),
+    index("idx_metrics_tenant").on(table.tenantId),
+    index("idx_metrics_type").on(table.metricType),
+    index("idx_metrics_period").on(table.periodStart, table.periodEnd),
   ]
 );
 
+// ==============================================================================
+// AUTH.JS ADAPTER TABLES (for platform admin authentication)
+// ==============================================================================
+
 // ============================================================================
-// Audit Log (Phase 7)
+// Accounts - OAuth provider accounts (for platform admins to use Relish OAuth)
 // ============================================================================
 
-export const auditLog = sqliteTable(
-  "audit_log",
+export const accounts = sqliteTable(
+  "accounts",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    action: text("action").notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    metadata: text("metadata"), // JSON
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => platformAdmins.id, { onDelete: "cascade" }),
+
+    // OAuth provider info
+    type: text("type").notNull(), // "oauth", "email"
+    provider: text("provider").notNull(), // "github", "google", etc
+    providerAccountId: text("provider_account_id").notNull(),
+
+    // Tokens (encrypted in transit)
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    expiresAt: integer("expires_at"),
+
+    // Scope
+    scope: text("scope"),
+
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
   },
   (table) => [
-    index("idx_audit_user").on(table.userId),
-    index("idx_audit_created").on(table.createdAt),
-    index("idx_audit_action").on(table.action),
+    uniqueIndex("idx_account_provider").on(
+      table.userId,
+      table.provider,
+      table.providerAccountId
+    ),
   ]
 );
 
 // ============================================================================
-// Type Exports - Use these instead of manually defined types
+// Sessions - Auth.js session tokens for platform admins
 // ============================================================================
 
-// User types
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    sessionToken: text("session_token").notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => platformAdmins.id, { onDelete: "cascade" }),
 
-// Email verification token types
-export type EmailVerificationToken =
-  typeof emailVerificationTokens.$inferSelect;
-export type NewEmailVerificationToken =
-  typeof emailVerificationTokens.$inferInsert;
+    // Expiration
+    expiresAt: integer("expires_at").notNull(),
 
-// Password reset token types
-export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
-export type NewPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [index("idx_session_token").on(table.sessionToken)]
+);
 
-// Refresh token types
-export type RefreshToken = typeof refreshTokens.$inferSelect;
-export type NewRefreshToken = typeof refreshTokens.$inferInsert;
+// ============================================================================
+// Verification Tokens - Email verification for platform admin signup
+// ============================================================================
 
-// Organization types (Phase 4+)
-export type Organization = typeof organizations.$inferSelect;
-export type NewOrganization = typeof organizations.$inferInsert;
+export const verificationTokens = sqliteTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(), // email address
+    token: text("token").notNull(),
+    expiresAt: integer("expires_at").notNull(),
 
-// Team types (Phase 4+)
-export type Team = typeof teams.$inferSelect;
-export type NewTeam = typeof teams.$inferInsert;
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_verification_token").on(
+      table.identifier,
+      table.token
+    ),
+  ]
+);
+// ==============================================================================
+// TYPE EXPORTS - Use these for type safety
+// ==============================================================================
 
-// OAuth provider types (Phase 6)
-export type OAuthProvider = typeof oauthProviders.$inferSelect;
-export type NewOAuthProvider = typeof oauthProviders.$inferInsert;
+// Tenant types
+export type Tenant = typeof tenants.$inferSelect;
+export type NewTenant = typeof tenants.$inferInsert;
 
-// Role types (Phase 4)
-export type Role = typeof roles.$inferSelect;
-export type NewRole = typeof roles.$inferInsert;
+// Platform admin types
+export type PlatformAdmin = typeof platformAdmins.$inferSelect;
+export type NewPlatformAdmin = typeof platformAdmins.$inferInsert;
 
-// Role assignment types (Phase 4)
-export type RoleAssignment = typeof roleAssignments.$inferSelect;
-export type NewRoleAssignment = typeof roleAssignments.$inferInsert;
+// Platform admin tenant permission types
+export type PlatformAdminTenantPermission =
+  typeof platformAdminTenantPermissions.$inferSelect;
+export type NewPlatformAdminTenantPermission =
+  typeof platformAdminTenantPermissions.$inferInsert;
 
-// Permission audit types (Phase 4)
-export type PermissionAudit = typeof permissionAudit.$inferSelect;
-export type NewPermissionAudit = typeof permissionAudit.$inferInsert;
+// API key types
+export type APIKey = typeof apiKeys.$inferSelect;
+export type NewAPIKey = typeof apiKeys.$inferInsert;
 
-// Audit log types (Phase 7)
-export type AuditLog = typeof auditLog.$inferSelect;
-export type NewAuditLog = typeof auditLog.$inferInsert;
+// Tenant data schema types
+export type TenantDataSchema = typeof tenantDataSchemas.$inferSelect;
+export type NewTenantDataSchema = typeof tenantDataSchemas.$inferInsert;
+
+// Usage metric types
+export type UsageMetric = typeof usageMetrics.$inferSelect;
+export type NewUsageMetric = typeof usageMetrics.$inferInsert;
+
+// Auth.js adapter types
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+
+export type VerificationToken = typeof verificationTokens.$inferSelect;
+export type NewVerificationToken = typeof verificationTokens.$inferInsert;
+
