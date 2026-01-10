@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1765697954177,
-      "tag": "0000_fearless_kree",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1768077602187,
-      "tag": "0001_dark_revanche",
+      "when": 1768083300716,
+      "tag": "0000_tranquil_hannibal_king",
       "breakpoints": true
     }
   ]

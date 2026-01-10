@@ -136,15 +136,4 @@ CREATE TABLE `verification_tokens` (
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `idx_verification_token` ON `verification_tokens` (`identifier`,`token`);--> statement-breakpoint
-DROP TABLE `audit_log`;--> statement-breakpoint
-DROP TABLE `email_verification_tokens`;--> statement-breakpoint
-DROP TABLE `oauth_providers`;--> statement-breakpoint
-DROP TABLE `organizations`;--> statement-breakpoint
-DROP TABLE `password_reset_tokens`;--> statement-breakpoint
-DROP TABLE `permission_audit`;--> statement-breakpoint
-DROP TABLE `refresh_tokens`;--> statement-breakpoint
-DROP TABLE `role_assignments`;--> statement-breakpoint
-DROP TABLE `roles`;--> statement-breakpoint
-DROP TABLE `teams`;--> statement-breakpoint
-DROP TABLE `users`;
+CREATE UNIQUE INDEX `idx_verification_token` ON `verification_tokens` (`identifier`,`token`);

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
-import { createAdminRouter } from "../../src/routes/admin/dashboard";
+import { createAdminRouter } from "../src/routes/admin/dashboard";
 import type { D1Database } from "@cloudflare/workers-types";
 import { drizzle } from "drizzle-orm/d1";
-import * as schema from "../../src/db/schema";
-import { generateAPIKey } from "../../src/utils/api-keys";
+import * as schema from "../src/db/schema";
+import { generateAPIKey } from "../src/utils/api-keys";
 
 /**
  * Admin Dashboard API Tests
