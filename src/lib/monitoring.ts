@@ -5,9 +5,7 @@
  * for performance monitoring.
  */
 
-import {
-  captureException as sentryCaptureException,
-} from "@sentry/cloudflare";
+import { captureException as sentryCaptureException } from "@sentry/cloudflare";
 
 export interface MonitoringConfig {
   sentryDsn?: string;
@@ -17,7 +15,7 @@ export interface MonitoringConfig {
 
 /**
  * Initialize Sentry error tracking
- * 
+ *
  * Note: For Cloudflare Workers with Hono, we use captureException directly
  * rather than wrapping the entire handler.
  */

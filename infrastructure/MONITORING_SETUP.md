@@ -16,6 +16,7 @@ The auth service includes comprehensive monitoring and observability using:
 ### Setup
 
 1. **Create Sentry Project**
+
    ```bash
    # Go to https://sentry.io
    # Create new project > Cloudflare Workers
@@ -23,10 +24,11 @@ The auth service includes comprehensive monitoring and observability using:
    ```
 
 2. **Add DSN to Pulumi ESC**
+
    ```bash
    # Open ESC environment
    pulumi env open loganpowell/cf-auth/dev
-   
+
    # Add Sentry DSN secret
    ```
 
@@ -36,7 +38,7 @@ The auth service includes comprehensive monitoring and observability using:
      secrets:
        sentryDsn:
          fn::secret: "https://xxx@xxx.ingest.sentry.io/xxx"
-     
+
      environmentVariables:
        SENTRY_DSN: ${secrets.sentryDsn}
    ```
@@ -52,11 +54,13 @@ The auth service includes comprehensive monitoring and observability using:
 ### Features
 
 **Automatic Error Capture:**
+
 - All unhandled exceptions
 - Request errors (4xx, 5xx)
 - Middleware errors
 
 **Context Enrichment:**
+
 - Request method and path
 - HTTP headers (sanitized)
 - Tenant ID (if available)
@@ -64,6 +68,7 @@ The auth service includes comprehensive monitoring and observability using:
 - Request duration
 
 **Performance Monitoring:**
+
 - Request duration tracking
 - Slow query detection
 - Endpoint performance metrics
@@ -73,6 +78,7 @@ The auth service includes comprehensive monitoring and observability using:
 ### Built-in Metrics
 
 Cloudflare automatically tracks:
+
 - Request count
 - Response status codes
 - Request duration (p50, p95, p99)
@@ -82,6 +88,7 @@ Cloudflare automatically tracks:
 ### Access Analytics
 
 **Via Dashboard:**
+
 ```
 https://dash.cloudflare.com/
 → Workers & Pages
@@ -90,10 +97,11 @@ https://dash.cloudflare.com/
 ```
 
 **Via GraphQL API:**
+
 ```graphql
 query {
   viewer {
-    accounts(filter: {accountTag: "YOUR_ACCOUNT_ID"}) {
+    accounts(filter: { accountTag: "YOUR_ACCOUNT_ID" }) {
       workersInvocationsAdaptive(
         filter: {
           scriptName: "auth-service"
@@ -123,7 +131,7 @@ ctx.waitUntil(
   env.ANALYTICS.writeDataPoint({
     blobs: [tenantId, endpoint, userId],
     doubles: [responseTime, dataSize],
-    indexes: [timestamp, statusCode]
+    indexes: [timestamp, statusCode],
   })
 );
 ```
@@ -156,11 +164,13 @@ All logs follow structured JSON format:
 ### Accessing Logs
 
 **Real-time via wrangler:**
+
 ```bash
 wrangler tail auth-service --format=pretty
 ```
 
 **Historical via Logpush:**
+
 ```bash
 # Set up Logpush to S3, R2, or external service
 wrangler logpush create \
@@ -173,12 +183,14 @@ wrangler logpush create \
 ### Recommended Dashboards
 
 1. **Sentry Performance Dashboard**
+
    - Transaction rates
    - Error rates
    - p95 response times
    - Apdex score
 
 2. **Cloudflare Workers Dashboard**
+
    - Request volume
    - CPU time
    - Memory usage
@@ -195,6 +207,7 @@ wrangler logpush create \
 ### Sentry Alerts
 
 Configure in Sentry dashboard:
+
 - Error rate exceeds 1%
 - Response time p95 > 1000ms
 - New error types detected
@@ -202,6 +215,7 @@ Configure in Sentry dashboard:
 ### Cloudflare Alerts
 
 Configure in Cloudflare dashboard:
+
 - Worker errors > 100/minute
 - Response time > 500ms (p95)
 - Request volume spike (>200% of baseline)
@@ -216,8 +230,8 @@ if (errorRate > 0.05) {
   await fetch("https://hooks.slack.com/services/YOUR/WEBHOOK", {
     method: "POST",
     body: JSON.stringify({
-      text: `⚠️ High error rate: ${(errorRate * 100).toFixed(2)}%`
-    })
+      text: `⚠️ High error rate: ${(errorRate * 100).toFixed(2)}%`,
+    }),
   });
 }
 ```
@@ -227,25 +241,28 @@ if (errorRate > 0.05) {
 ### Reproduce Issues
 
 1. **From Sentry:**
+
    - Click error in Sentry dashboard
    - View full stack trace
    - See request context (headers, params)
    - Replay user session (if enabled)
 
 2. **From Logs:**
+
    ```bash
    # Tail logs and filter for errors
    wrangler tail auth-service | grep ERROR
-   
+
    # Search historical logs
    wrangler logpush jobs list
    ```
 
 3. **Local Testing:**
+
    ```bash
    # Run with Sentry in dev mode
    SENTRY_DSN=your-dsn wrangler dev
-   
+
    # Test error capture
    curl -X POST http://localhost:8787/trigger-error
    ```
