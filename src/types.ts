@@ -86,6 +86,9 @@ export interface Env {
   // Environment
   ENVIRONMENT?: "development" | "production";
 
+  // Monitoring
+  SENTRY_DSN?: string;
+
   // OAuth (Phase 6)
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;

@@ -8,6 +8,11 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import type { Env } from "./types";
+import {
+  initializeSentry,
+  captureException,
+  logRequest,
+} from "./lib/monitoring";
 
 // Import OpenAPI route definitions
 // DISABLED: Legacy routes commented out
@@ -71,6 +76,53 @@ const app = new OpenAPIHono<{ Bindings: Env }>();
 const adminRouter = createAdminRouter();
 const doRouter = createDurableObjectsRouter();
 const authRouter = createAuthRouter();
+
+// Monitoring middleware - initialize Sentry and track requests
+app.use("/*", async (c, next) => {
+  // Initialize Sentry on first request
+  if (c.env.SENTRY_DSN) {
+    initializeSentry({
+      sentryDsn: c.env.SENTRY_DSN,
+      environment: c.env.ENVIRONMENT || "production",
+      release: "0.5.0",
+    });
+  }
+
+  const startTime = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
+
+  try {
+    await next();
+
+    // Log successful request
+    logRequest({
+      method,
+      path,
+      status: c.res.status,
+      duration: Date.now() - startTime,
+    });
+  } catch (error) {
+    // Capture error to Sentry
+    if (error instanceof Error) {
+      captureException(error, {
+        method,
+        path,
+        headers: Object.fromEntries(c.req.raw.headers.entries()),
+      });
+
+      logRequest({
+        method,
+        path,
+        status: 500,
+        duration: Date.now() - startTime,
+        error: error.message,
+      });
+    }
+
+    throw error;
+  }
+});
 
 // Global CORS middleware
 app.use(
@@ -197,9 +249,19 @@ app.notFound((c) => {
   );
 });
 
-// Error handler
+// Error handler with Sentry integration
 app.onError((err, c) => {
   console.error("Unhandled error:", err);
+
+  // Capture to Sentry if available
+  if (c.env.SENTRY_DSN) {
+    captureException(err, {
+      path: c.req.path,
+      method: c.req.method,
+      headers: Object.fromEntries(c.req.raw.headers.entries()),
+    });
+  }
+
   return c.json(
     {
       error: "Internal Server Error",

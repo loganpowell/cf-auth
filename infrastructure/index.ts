@@ -195,67 +195,105 @@ const githubActionsRole = new aws.iam.Role("github-actions-role", {
 // Cloudflare Resources
 // =============================================================================
 
-// Create D1 Database with stack-based naming
-const authDatabase = new cloudflare.D1Database("auth-db", {
-  accountId: cloudflareAccountId,
-  name: `auth-db-${stackName}`,
-});
+// Create or import D1 Database
+// To import: pulumi import cloudflare:index/d1Database:D1Database auth-db <accountId>/<databaseId>
+const authDatabase = new cloudflare.D1Database(
+  "auth-db",
+  {
+    accountId: cloudflareAccountId,
+    name: `auth-db-${stackName}`, // Existing: auth-db-dev
+  },
+  {
+    // Protect from accidental deletion
+    protect: true,
+  }
+);
 
-// Create KV Namespaces with stack-based naming
-const rateLimiterKV = new cloudflare.WorkersKvNamespace("rate-limiter-kv", {
-  accountId: cloudflareAccountId,
-  title: `rate-limiter-kv-${stackName}`,
-});
+// Create or import KV Namespaces
+// To import: pulumi import cloudflare:index/workersKvNamespace:WorkersKvNamespace rate-limiter-kv <accountId>/<namespaceId>
+const rateLimiterKV = new cloudflare.WorkersKvNamespace(
+  "rate-limiter-kv",
+  {
+    accountId: cloudflareAccountId,
+    title: `Auth Service - Rate Limiter`, // Existing title
+  },
+  {
+    protect: true,
+  }
+);
 
 const tokenBlacklistKV = new cloudflare.WorkersKvNamespace(
   "token-blacklist-kv",
   {
     accountId: cloudflareAccountId,
-    title: `token-blacklist-kv-${stackName}`,
+    title: `Auth Service - Token Blacklist`, // Existing title
+  },
+  {
+    protect: true,
   }
 );
 
-const sessionCacheKV = new cloudflare.WorkersKvNamespace("session-cache-kv", {
-  accountId: cloudflareAccountId,
-  title: `session-cache-kv-${stackName}`,
-});
+const sessionCacheKV = new cloudflare.WorkersKvNamespace(
+  "session-cache-kv",
+  {
+    accountId: cloudflareAccountId,
+    title: `Auth Service - Session Cache`, // Existing title
+  },
+  {
+    protect: true,
+  }
+);
 
 // KV Namespace for mutation logs (for Durable Objects persistence)
-const mutationLogKV = new cloudflare.WorkersKvNamespace("mutation-log-kv", {
-  accountId: cloudflareAccountId,
-  title: `mutation-log-kv-${stackName}`,
-});
+const mutationLogKV = new cloudflare.WorkersKvNamespace(
+  "mutation-log-kv",
+  {
+    accountId: cloudflareAccountId,
+    title: `mutation-log-kv-${stackName}`, // Existing title
+  },
+  {
+    protect: true,
+  }
+);
 
 // =============================================================================
 // R2 Bucket for CSV Storage
 // =============================================================================
 
 // R2 bucket for per-tenant CSV files (canonical data source)
-const tenantDataBucket = new cloudflare.R2Bucket("tenant-data-bucket", {
-  accountId: cloudflareAccountId,
-  name: `tenant-data-${stackName}`,
-  location: "WNAM", // Western North America
-});
+// To import: pulumi import cloudflare:index/r2Bucket:R2Bucket tenant-data-bucket <accountId>/<bucketName>
+const tenantDataBucket = new cloudflare.R2Bucket(
+  "tenant-data-bucket",
+  {
+    accountId: cloudflareAccountId,
+    name: `tenant-data-${stackName}`, // Existing: tenant-data-dev
+    location: "ENAM", // Eastern North America (actual location from import)
+  },
+  {
+    protect: true,
+  }
+);
 
 // =============================================================================
 // Worker Secrets
 // =============================================================================
 
-// Generate a secure JWT secret
-const jwtSecret = new cloudflare.WorkerSecret(
-  "jwt-secret",
-  {
-    accountId: cloudflareAccountId,
-    name: "JWT_SECRET",
-    scriptName: "auth-service", // Must match wrangler.toml name
-    secretText:
-      config.getSecret("jwtSecret") ||
-      pulumi.output(crypto.randomBytes(32).toString("base64")),
-  },
-  {
-    additionalSecretOutputs: ["secretText"],
-  }
-);
+// Note: Worker secrets are managed via Pulumi ESC and set via wrangler
+// JWT_SECRET is provided by ESC environment: loganpowell/cf-auth/dev
+// To update: wrangler secret put JWT_SECRET (with ESC value)
+
+// Deprecated: cloudflare.WorkerSecret is being replaced by cloudflare.WorkersSecret
+// For now, we manage secrets via ESC + wrangler rather than Pulumi directly
+//
+// const jwtSecret = new cloudflare.WorkersSecret(
+//   "jwt-secret",
+//   {
+//     accountId: cloudflareAccountId,
+//     name: "JWT_SECRET",
+//     scriptName: "auth-service",
+//     secretText: config.requireSecret("jwtSecret"),
+//   }
+// );
 
 // =============================================================================
 // Durable Objects
@@ -288,7 +326,7 @@ export const tokenBlacklistKvId = tokenBlacklistKV.id;
 export const sessionCacheKvId = sessionCacheKV.id;
 export const mutationLogKvId = mutationLogKV.id;
 export const tenantDataBucketName = tenantDataBucket.name;
-export const jwtSecretName = jwtSecret.name;
+// Note: JWT_SECRET managed via Pulumi ESC, not exported here
 
 // Export email infrastructure outputs at top level for easier access
 export const domainIdentityVerificationToken =
@@ -341,7 +379,7 @@ export const outputs = {
   r2Buckets: {
     tenantData: {
       name: tenantDataBucket.name,
-      location: "WNAM",
+      location: "ENAM",
       purpose: "Per-tenant CSV files (canonical authorization data)",
     },
   },
@@ -353,9 +391,10 @@ export const outputs = {
     ],
   },
   workerSecrets: {
+    note: "Worker secrets managed via Pulumi ESC (loganpowell/cf-auth/dev)",
     jwtSecret: {
-      name: jwtSecret.name,
-      scriptName: "auth-service",
+      name: "JWT_SECRET",
+      managedBy: "Pulumi ESC + wrangler",
       purpose: "JWT token signing and verification for end-user authentication",
     },
   },

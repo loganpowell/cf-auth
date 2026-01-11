@@ -27,6 +27,7 @@
     "@asteasolutions/zod-to-openapi": "^8.2.0",
     "@cloudflare/workers-types": "^4.20241127.0",
     "@hono/zod-openapi": "^1.1.5",
+    "@sentry/cloudflare": "^10.32.1",
     "arctic": "^1.9.2",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
