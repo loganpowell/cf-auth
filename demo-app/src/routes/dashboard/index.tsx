@@ -19,7 +19,7 @@ import { serverApi } from "~/lib/server-api";
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
   console.log("🔍 Dashboard loader started");
 
-  // Check if refresh token exists (means user is authenticated)
+  // Check if access token exists (means user is authenticated)
   const refreshToken = cookie.get("refreshToken");
   let accessToken = cookie.get("accessToken");
 
@@ -29,14 +29,13 @@ export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
     accessTokenValue: accessToken?.value ? "exists" : "missing",
   });
 
-  if (!refreshToken) {
-    console.log("❌ No refresh token - redirecting to login");
-    // No auth, redirect to login
+  if (!accessToken?.value) {
+    console.log("❌ No access token - redirecting to login");
     throw redirect(302, "/");
   }
 
-  // If access token is missing but refresh token exists, try to refresh
-  if (!accessToken?.value && refreshToken) {
+  // Use access token to fetch user data
+  if (false) {
     console.log("🔄 Access token missing - attempting refresh...");
     try {
       const refreshData = await serverApi.refresh();
@@ -156,7 +155,7 @@ export default component$(() => {
       <div class="mb-16">
         <h1 class="text-5xl font-light tracking-tightest mb-4">
           Welcome back
-          {userData.value.user ? `, ${userData.value.user.displayName}` : ""}
+          {userData.value.user ? `, ${userData.value.user.name}` : ""}
         </h1>
         <p class="text-sm opacity-60">You're successfully authenticated</p>
       </div>

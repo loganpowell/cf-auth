@@ -11,34 +11,7 @@ import { ToastContextId } from "~/contexts/toast-context";
 
 // Fetch user data
 export const useUserData = routeLoader$(async ({ cookie, redirect }) => {
-  const refreshToken = cookie.get("refreshToken");
   const accessToken = cookie.get("accessToken");
-
-  if (!refreshToken) {
-    throw redirect(302, "/");
-  }
-
-  // Auto-refresh if needed
-  if (!accessToken?.value && refreshToken) {
-    try {
-      const refreshData = await serverApi.refresh();
-      cookie.set("accessToken", refreshData.accessToken, {
-        httpOnly: false,
-        secure: false,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 15,
-      });
-      const newAccessToken = cookie.get("accessToken");
-      if (newAccessToken?.value) {
-        const userData = await serverApi.getMe(newAccessToken.value);
-        return userData;
-      }
-    } catch (error) {
-      console.error("Failed to refresh token:", error);
-      throw redirect(302, "/");
-    }
-  }
 
   if (!accessToken?.value) {
     throw redirect(302, "/");

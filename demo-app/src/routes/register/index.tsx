@@ -23,7 +23,7 @@ export const useRegister = routeAction$(
       const result = await serverApi.register({
         email: data.email,
         password: data.password,
-        displayName: data.displayName,
+        name: data.displayName,
       });
 
       // Note: Registration doesn't return access token - users must verify email first

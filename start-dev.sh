@@ -31,13 +31,15 @@ fi
 cleanup() {
     echo ""
     echo "🛑 Shutting down services..."
+    echo "$(date): Services stopped by user" >> /tmp/cf-auth-backend.log
+    echo "$(date): Services stopped by user" >> /tmp/cf-auth-frontend.log
     kill $(jobs -p) 2>/dev/null || true
     exit
 }
 
 trap cleanup SIGINT SIGTERM
 
-echo "${BLUE}📦 Installing dependencies if needed...${NC}"
+echo -e "${BLUE}📦 Installing dependencies if needed...${NC}"
 pnpm install --silent 2>/dev/null || true
 
 cd demo-app
@@ -45,12 +47,23 @@ pnpm install --silent 2>/dev/null || true
 cd ..
 
 echo ""
-echo "${GREEN}✓ Dependencies ready${NC}"
+echo -e "${GREEN}✓ Dependencies ready${NC}"
 echo ""
 
+# Clear old logs and add startup timestamp
+echo "==================================" > /tmp/cf-auth-backend.log
+echo "$(date): Starting backend..." >> /tmp/cf-auth-backend.log
+echo "==================================" >> /tmp/cf-auth-backend.log
+echo "" >> /tmp/cf-auth-backend.log
+
+echo "==================================" > /tmp/cf-auth-frontend.log
+echo "$(date): Starting frontend..." >> /tmp/cf-auth-frontend.log
+echo "==================================" >> /tmp/cf-auth-frontend.log
+echo "" >> /tmp/cf-auth-frontend.log
+
 # Start backend in background
-echo "${BLUE}🔧 Starting backend (http://localhost:8787)...${NC}"
-pnpm run dev > /tmp/cf-auth-backend.log 2>&1 &
+echo -e "${BLUE}🔧 Starting backend (http://localhost:8787)...${NC}"
+pnpm run dev >> /tmp/cf-auth-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
@@ -58,15 +71,15 @@ sleep 3
 
 # Check if backend started successfully
 if ps -p $BACKEND_PID > /dev/null; then
-    echo "${GREEN}✓ Backend running (PID: $BACKEND_PID)${NC}"
+    echo -e "${GREEN}✓ Backend running (PID: $BACKEND_PID)${NC}"
 else
-    echo "${YELLOW}⚠ Backend may have failed to start. Check /tmp/cf-auth-backend.log${NC}"
+    echo -e "${YELLOW}⚠ Backend may have failed to start. Check /tmp/cf-auth-backend.log${NC}"
 fi
 
 # Start frontend in background
-echo "${BLUE}🎨 Starting demo app (http://localhost:5173)...${NC}"
+echo -e "${BLUE}🎨 Starting demo app (http://localhost:5173)...${NC}"
 cd demo-app
-pnpm run dev > /tmp/cf-auth-frontend.log 2>&1 &
+pnpm run dev >> /tmp/cf-auth-frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 
@@ -75,22 +88,20 @@ sleep 3
 
 # Check if frontend started successfully
 if ps -p $FRONTEND_PID > /dev/null; then
-    echo "${GREEN}✓ Demo app running (PID: $FRONTEND_PID)${NC}"
+    echo -e "${GREEN}✓ Demo app running (PID: $FRONTEND_PID)${NC}"
 else
-    echo "${YELLOW}⚠ Demo app may have failed to start. Check /tmp/cf-auth-frontend.log${NC}"
+    echo -e "${YELLOW}⚠ Demo app may have failed to start. Check /tmp/cf-auth-frontend.log${NC}"
 fi
 
 echo ""
-echo "${GREEN}🎉 Development environment ready!${NC}"
+echo -e "${GREEN}🎉 Development environment ready!${NC}"
 echo ""
-echo "  Backend:  ${BLUE}http://localhost:8787${NC}"
-echo "  Frontend: ${BLUE}http://localhost:5173${NC}"
+echo -e "  Backend:  ${BLUE}http://localhost:8787${NC}"
+echo -e "  Frontend: ${BLUE}http://localhost:5173${NC}"
 echo ""
-echo "  Backend logs:  tail -f /tmp/cf-auth-backend.log"
-echo "  Frontend logs: tail -f /tmp/cf-auth-frontend.log"
-echo ""
-echo "Press ${YELLOW}Ctrl+C${NC} to stop all services"
+echo -e "Streaming logs below. Press ${YELLOW}Ctrl+C${NC} to stop all services"
+echo "================================================================"
 echo ""
 
-# Wait for both processes
-wait
+# Tail both log files together
+tail -f /tmp/cf-auth-backend.log /tmp/cf-auth-frontend.log

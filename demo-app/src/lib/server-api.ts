@@ -7,7 +7,7 @@
 
 import createClient from "openapi-fetch";
 import type { paths } from "./api-client.d";
-import { getApiUrl } from "./config";
+import { getApiUrl, getTenantId } from "./config";
 
 /**
  * Create a server-side API client with optional auth token
@@ -70,21 +70,34 @@ export const serverApi = {
   /**
    * Register a new user
    */
-  async register(data: {
-    email: string;
-    password: string;
-    displayName: string;
-  }) {
+  async register(data: { email: string; password: string; name: string }) {
+    const apiUrl = getApiUrl();
+    console.log("🔧 API URL:", apiUrl);
+    console.log("📝 Register data:", { email: data.email, name: data.name });
+
     const client = createServerApiClient();
     const response = await client.POST("/v1/auth/register", {
       body: data,
+      headers: {
+        "x-tenant-id": getTenantId(),
+      },
+    });
+
+    console.log("📥 Response:", {
+      hasError: !!response.error,
+      hasData: !!response.data,
+      status: response.response.status,
+      error: response.error,
+      data: response.data,
     });
 
     if (response.error || !response.data) {
       const errorMsg =
-        response.error?.error ||
-        response.error?.message ||
+        (response.error as any)?.error ||
+        (response.error as any)?.message ||
+        JSON.stringify(response.error) ||
         "Registration failed";
+      console.error("❌ Registration error:", errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -95,14 +108,32 @@ export const serverApi = {
    * Login with email and password
    */
   async login(data: { email: string; password: string }) {
+    console.log("🔧 API URL:", getApiUrl());
+    console.log("📝 Login data:", { email: data.email });
+
     const client = createServerApiClient();
     const response = await client.POST("/v1/auth/login", {
       body: data,
+      headers: {
+        "x-tenant-id": getTenantId(),
+      },
+    });
+
+    console.log("📥 Response:", {
+      hasError: !!response.error,
+      hasData: !!response.data,
+      status: response.response.status,
+      error: response.error,
+      data: response.data,
     });
 
     if (response.error || !response.data) {
       const errorMsg =
-        response.error?.error || response.error?.message || "Login failed";
+        (response.error as any)?.error ||
+        (response.error as any)?.message ||
+        JSON.stringify(response.error) ||
+        "Login failed";
+      console.error("❌ Login error:", errorMsg);
       throw new Error(errorMsg);
     }
 

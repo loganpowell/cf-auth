@@ -70,11 +70,7 @@ export const api = {
   /**
    * Register a new user
    */
-  async register(data: {
-    email: string;
-    password: string;
-    displayName: string;
-  }) {
+  async register(data: { email: string; password: string; name: string }) {
     const response = await apiClient.POST("/v1/auth/register", {
       body: data,
     });

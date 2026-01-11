@@ -5,7 +5,7 @@
  * Displays the login form for authentication using Qwik routeAction$.
  */
 
-import { component$, useVisibleTask$ } from "@qwik.dev/core";
+import { component$ } from "@qwik.dev/core";
 import {
   routeAction$,
   Form,
@@ -13,21 +13,35 @@ import {
   zod$,
   type DocumentHead,
 } from "@qwik.dev/router";
-import { serverApi } from "~/lib/server-api";
 import { DarkModeToggle } from "~/components/ui/dark-mode-toggle";
+import { getApiUrl, getTenantId } from "~/lib/config";
 
 // Login action - runs on server only
 export const useLogin = routeAction$(
   async (data, { cookie, fail }) => {
     try {
-      const result = await serverApi.login({
-        email: data.email,
-        password: data.password,
+      const response = await fetch(`${getApiUrl()}/v1/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tenant-id": getTenantId(),
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
       });
 
-      console.log("Login successful for:", data.email);
+      if (!response.ok) {
+        const error = await response.json();
+        return fail(response.status, {
+          message: error.error || "Login failed",
+        });
+      }
 
-      // Set access token cookie for client-side access
+      const result = await response.json();
+
+      // Set access token cookie
       if (result.accessToken) {
         cookie.set("accessToken", result.accessToken, {
           httpOnly: false, // Allow client-side access
@@ -38,18 +52,14 @@ export const useLogin = routeAction$(
         });
       }
 
-      // Note: refreshToken is set by the backend via Set-Cookie header with httpOnly flag
-      // We don't need to manually set it here
-
-      // Return success - we'll handle redirect on client
       return {
         success: true,
-        redirectTo: "/logged-in",
+        accessToken: result.accessToken,
+        user: result.user,
       };
     } catch (error) {
-      console.error("Login failed:", error);
-      return fail(400, {
-        message: error instanceof Error ? error.message : "Login failed",
+      return fail(500, {
+        message: "Network error. Please try again.",
       });
     }
   },
@@ -61,26 +71,6 @@ export const useLogin = routeAction$(
 
 export default component$(() => {
   const login = useLogin();
-
-  // Handle client-side redirect after successful login
-  // eslint-disable-next-line qwik/no-use-visible-task
-  useVisibleTask$(({ track }) => {
-    const value = track(() => login.value);
-
-    // Type guard to check if value has our success properties
-    if (
-      value &&
-      typeof value === "object" &&
-      "success" in value &&
-      "redirectTo" in value
-    ) {
-      const successValue = value as { success: boolean; redirectTo: string };
-      if (successValue.success && successValue.redirectTo) {
-        console.log("Redirecting to:", successValue.redirectTo);
-        window.location.href = successValue.redirectTo;
-      }
-    }
-  });
 
   return (
     <div class="min-h-screen bg-white dark:bg-black flex items-center justify-center px-6 transition-colors duration-200">
@@ -105,8 +95,38 @@ export default component$(() => {
           </div>
         )}
 
+        {/* Success Message */}
+        {login.value?.success && (
+          <div class="mb-8 pb-6 border-b border-black dark:border-white">
+            <p class="text-sm">Login successful! Redirecting...</p>
+          </div>
+        )}
+
         {/* Login Form */}
-        <Form action={login} class="space-y-8">
+        <Form
+          action={login}
+          class="space-y-8"
+          onSubmitCompleted$={() => {
+            console.log("onSubmitCompleted called");
+            console.log("login.value:", login.value);
+
+            if (login.value?.success && login.value.accessToken) {
+              console.log(
+                "Success condition met, storing token and redirecting"
+              );
+              // Store token and navigate
+              if (typeof window !== "undefined") {
+                localStorage.setItem("accessToken", login.value.accessToken);
+                console.log("Token stored, navigating to /logged-in");
+                window.location.href = "/logged-in";
+              }
+            } else {
+              console.log("Success condition NOT met");
+              console.log("success:", login.value?.success);
+              console.log("accessToken:", login.value?.accessToken);
+            }
+          }}
+        >
           <div>
             <label
               for="email"

@@ -214,7 +214,7 @@ app.route("/do", doRouter);
 
 // End-user authentication routes (Phase 3)
 // For tenant users to register, login, logout, validate sessions
-app.route("/auth", authRouter);
+app.route("/v1/auth", authRouter);
 
 // Generate OpenAPI spec endpoint
 app.doc("/openapi.json", {

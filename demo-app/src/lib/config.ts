@@ -25,3 +25,13 @@ export function getApiUrl(): string {
 export function getAppUrl(): string {
   return import.meta.env.VITE_APP_URL || "http://localhost:5173";
 }
+
+/**
+ * Get the tenant ID
+ *
+ * In development: Uses VITE_TENANT_ID from .env (tenant_000)
+ * In production: Should be dynamically determined or set per deployment
+ */
+export function getTenantId(): string {
+  return import.meta.env.VITE_TENANT_ID || "tenant_000";
+}

@@ -9,14 +9,17 @@
 ```
 
 This starts:
+
 - ✅ Backend at `http://localhost:8787`
 - ✅ Demo app at `http://localhost:5173`
 
 Logs are written to:
+
 - `/tmp/cf-auth-backend.log`
 - `/tmp/cf-auth-frontend.log`
 
 View logs in real-time:
+
 ```bash
 # Backend logs
 tail -f /tmp/cf-auth-backend.log
@@ -36,17 +39,20 @@ This starts everything including the Tauri desktop app.
 ### Option 3: Manual Start (Separate Terminals)
 
 **Terminal 1 - Backend:**
+
 ```bash
 pnpm run dev
 ```
 
 **Terminal 2 - Web App:**
+
 ```bash
 cd demo-app
 pnpm run dev
 ```
 
 **Terminal 3 - Desktop App:**
+
 ```bash
 cd ../desktop-app
 pnpm tauri dev
@@ -83,6 +89,7 @@ pnpm tauri dev
 The desktop app should open automatically when you run `start-all.sh` or `pnpm tauri dev`.
 
 Features to test:
+
 - Login/register (same backend as web)
 - View dashboard
 - Check permissions
@@ -126,6 +133,7 @@ tail -f /tmp/cf-auth-backend.log
 ```
 
 You'll see:
+
 - Request logs with duration and status
 - Error logs with stack traces
 - Sentry integration (when configured)
@@ -133,6 +141,7 @@ You'll see:
 ### Frontend Debugging
 
 Open browser console to see:
+
 - API requests and responses
 - Authentication state changes
 - Form validation errors
@@ -154,11 +163,13 @@ lsof -ti:5173 | xargs kill -9
 ### Backend Won't Start
 
 Check logs:
+
 ```bash
 cat /tmp/cf-auth-backend.log
 ```
 
 Common issues:
+
 - Missing D1 database (run `pnpm run db:migrate`)
 - Missing KV namespaces (check `wrangler.toml`)
 - Invalid environment variables
@@ -166,11 +177,13 @@ Common issues:
 ### Frontend Won't Start
 
 Check logs:
+
 ```bash
 cat /tmp/cf-auth-frontend.log
 ```
 
 Common issues:
+
 - Backend not running
 - Wrong API URL in `.env`
 - Missing dependencies (run `pnpm install`)

@@ -21,41 +21,9 @@ export const useLayoutUserData = routeLoader$(async ({ cookie, redirect }) => {
     accessTokenValue: accessToken?.value ? "present" : "missing",
   });
 
-  // Automatic token refresh if access token missing but refresh token exists
-  if (!accessToken?.value && refreshToken) {
-    console.log("🔄 Layout - Access token missing, attempting refresh...");
-    try {
-      const refreshData = await serverApi.refresh();
-      console.log("✅ Layout - Token refreshed successfully");
-      cookie.set("accessToken", refreshData.accessToken, {
-        httpOnly: false,
-        secure: false,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 15, // 15 minutes
-      });
-      // Get the new access token
-      const newAccessToken = cookie.get("accessToken");
-      if (newAccessToken?.value) {
-        console.log(
-          "📡 Layout - Calling serverApi.getMe with refreshed token..."
-        );
-        const userData = await serverApi.getMe(newAccessToken.value);
-        console.log("✅ Layout - User data received:", {
-          email: userData.user.email,
-          displayName: userData.user.displayName,
-          verified: userData.user.emailVerified,
-        });
-        return userData; // Return the full API response { user: {...} }
-      }
-    } catch (error) {
-      console.error("❌ Layout - Token refresh error:", error);
-      throw redirect(302, "/");
-    }
-  }
-
+  // Check if user is authenticated
   if (!accessToken?.value) {
-    console.log("⚠️ Layout - No access token or refresh token available");
+    console.log("❌ Layout - No access token, redirecting to login");
     throw redirect(302, "/");
   }
 

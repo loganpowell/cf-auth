@@ -14,7 +14,7 @@ export const useAuthCheck = routeLoader$(async ({ cookie, redirect }) => {
   const refreshToken = cookie.get("refreshToken");
   const accessToken = cookie.get("accessToken");
 
-  if (!refreshToken) {
+  if (!accessToken) {
     // Not logged in, redirect to login
     throw redirect(302, "/");
   }

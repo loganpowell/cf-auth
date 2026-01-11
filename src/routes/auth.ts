@@ -57,7 +57,10 @@ const AuthResponseSchema = z.object({
       emailVerified: z.boolean(),
     })
     .optional(),
-  token: z.string().optional(),
+  accessToken: z
+    .string()
+    .optional()
+    .openapi({ description: "JWT access token" }),
   session: z
     .object({
       id: z.string(),
@@ -169,11 +172,37 @@ app.openapi(registerRoute, async (c) => {
   }
 
   // Check if tenant exists
-  const tenant = await db
+  let tenant = await db
     .select()
     .from(schema.tenants)
     .where(eq(schema.tenants.id, tenantId))
     .get();
+
+  // Auto-create tenant in development if it doesn't exist
+  if (!tenant && c.env.ENVIRONMENT !== "production") {
+    console.log(`🛠️ Auto-creating tenant ${tenantId} for development`);
+
+    // Generate simple API keys for development
+    const publicKey = `pk_dev_${tenantId}`;
+    const secretKey = `sk_dev_${tenantId}_${Date.now()}`;
+
+    await db.insert(schema.tenants).values({
+      id: tenantId,
+      slug: tenantId.replace("tenant_", ""),
+      name: `Dev Tenant ${tenantId}`,
+      plan: "free",
+      publicKey,
+      secretKey,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    tenant = await db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, tenantId))
+      .get();
+  }
 
   if (!tenant) {
     return c.json({ success: false, error: "Tenant not found" } as const, 400);
@@ -238,6 +267,37 @@ app.openapi(registerRoute, async (c) => {
     lastActivityAt: now,
   });
 
+  // Generate and send email verification token
+  const verificationToken = crypto.randomUUID();
+  const tokenExpiry = now + 24 * 60 * 60 * 1000; // 24 hours
+
+  await db.insert(schema.verificationTokens).values({
+    identifier: email.toLowerCase(),
+    token: verificationToken,
+    expiresAt: tokenExpiry,
+    createdAt: now,
+  });
+
+  // Send verification email (skip in development or log it)
+  if (c.env.ENVIRONMENT === "production") {
+    try {
+      const { sendVerificationEmail } = await import(
+        "../services/email/ses.service"
+      );
+      await sendVerificationEmail(email, verificationToken, c.env);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      // Don't fail registration if email fails
+    }
+  } else {
+    console.log("📧 [DEV] Verification email would be sent to:", email);
+    console.log("📧 [DEV] Verification token:", verificationToken);
+    console.log(
+      "📧 [DEV] Verification URL:",
+      `http://localhost:5173/verify-email?token=${verificationToken}`
+    );
+  }
+
   return c.json(
     {
       success: true,
@@ -248,7 +308,7 @@ app.openapi(registerRoute, async (c) => {
         username: username || null,
         emailVerified: false,
       },
-      token,
+      accessToken: token,
       session: {
         id: sessionId,
         expiresAt,
@@ -391,7 +451,7 @@ app.openapi(loginRoute, async (c) => {
       username: user.username,
       emailVerified: user.emailVerified,
     },
-    token,
+    accessToken: token,
     session: {
       id: sessionId,
       expiresAt,
@@ -462,6 +522,824 @@ app.openapi(logoutRoute, async (c) => {
     success: true,
     message: "Logged out successfully",
   });
+});
+
+// ============================================================================
+// GET /auth/me - Get current user
+// ============================================================================
+
+const getMeRoute = createRoute({
+  method: "get",
+  path: "/me",
+  tags: ["Authentication"],
+  summary: "Get current user",
+  description: "Get the authenticated user's information",
+  request: {
+    headers: z.object({
+      authorization: z.string().openapi({
+        description: "Bearer JWT token",
+        example: "Bearer eyJhbGc...",
+      }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "User information",
+      content: {
+        "application/json": {
+          schema: z.object({
+            user: z.object({
+              id: z.string(),
+              email: z.string(),
+              name: z.string().nullable(),
+              username: z.string().nullable(),
+              emailVerified: z.boolean(),
+              tenantId: z.string(),
+            }),
+          }),
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: z.object({
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getMeRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const authHeader = c.req.header("authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ error: "No token provided" }, 401);
+  }
+
+  const token = authHeader.substring(7);
+  const jwtSecret = c.env.JWT_SECRET || "default-secret-change-in-production";
+  const decoded = await verifyToken(token, jwtSecret);
+
+  if (!decoded) {
+    return c.json({ error: "Invalid token" }, 401);
+  }
+
+  // Get user info
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.id, decoded.userId))
+    .get();
+
+  if (!user || user.status !== "active") {
+    return c.json({ error: "User not found or inactive" }, 401);
+  }
+
+  return c.json(
+    {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        emailVerified: user.emailVerified,
+        tenantId: user.tenantId,
+      },
+    },
+    200
+  );
+});
+
+// ============================================================================
+// POST /auth/resend-verification - Resend verification email
+// ============================================================================
+
+const resendVerificationRoute = createRoute({
+  method: "post",
+  path: "/resend-verification",
+  tags: ["Authentication"],
+  summary: "Resend verification email",
+  description: "Resend email verification link to user",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            email: z.string().email(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Verification email sent",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Bad request",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+    500: {
+      description: "Internal server error",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(resendVerificationRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const { email } = await c.req.json();
+
+  // Find user by email
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.email, email))
+    .get();
+
+  if (!user) {
+    return c.json(
+      {
+        success: false,
+        error: "User not found",
+      },
+      400
+    );
+  }
+
+  if (user.emailVerified) {
+    return c.json(
+      {
+        success: false,
+        error: "Email already verified",
+      },
+      400
+    );
+  }
+
+  // Generate new verification token
+  const verificationToken = crypto.randomUUID();
+  const now = Date.now();
+
+  // Delete old verification tokens for this user's email
+  await db
+    .delete(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.identifier, email));
+
+  // Create new verification token
+  const expiresAt = now + 24 * 60 * 60 * 1000; // 24 hours
+  await db.insert(schema.verificationTokens).values({
+    identifier: email,
+    token: verificationToken,
+    expiresAt,
+    createdAt: now,
+  });
+
+  // Send verification email
+  const environment = c.env.ENVIRONMENT || "production";
+  if (environment === "development") {
+    console.log("\n=== EMAIL VERIFICATION (DEV MODE) ===");
+    console.log(`To: ${email}`);
+    console.log(
+      `Verification Link: http://localhost:5173/verify-email?token=${verificationToken}`
+    );
+    console.log("=====================================\n");
+  } else {
+    // Send actual email via AWS SES in production
+    try {
+      const { sendVerificationEmail } = await import(
+        "../services/email/ses.service"
+      );
+      await sendVerificationEmail(email, verificationToken, c.env);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      return c.json(
+        {
+          success: false,
+          error: "Failed to send verification email",
+        },
+        500
+      );
+    }
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: "Verification email sent",
+    },
+    200
+  );
+});
+
+// ============================================================================
+// POST /auth/verify-email - Verify email with token
+// ============================================================================
+
+const verifyEmailRoute = createRoute({
+  method: "post",
+  path: "/verify-email",
+  tags: ["Authentication"],
+  summary: "Verify email address",
+  description: "Verify user email address with verification token",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            token: z.string(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Email verified successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Bad request",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(verifyEmailRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const { token } = await c.req.json();
+
+  // Find verification token
+  const verificationToken = await db
+    .select()
+    .from(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.token, token))
+    .get();
+
+  if (!verificationToken) {
+    return c.json(
+      {
+        success: false,
+        error: "Invalid verification token",
+      },
+      400
+    );
+  }
+
+  // Check if token expired
+  if (verificationToken.expiresAt < Date.now()) {
+    // Delete expired token
+    await db
+      .delete(schema.verificationTokens)
+      .where(eq(schema.verificationTokens.token, token));
+
+    return c.json(
+      {
+        success: false,
+        error: "Verification token expired",
+      },
+      400
+    );
+  }
+
+  // Find user by email (identifier)
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.email, verificationToken.identifier))
+    .get();
+
+  if (!user) {
+    return c.json(
+      {
+        success: false,
+        error: "User not found",
+      },
+      400
+    );
+  }
+
+  // Update user to mark email as verified
+  await db
+    .update(schema.tenantUsers)
+    .set({ emailVerified: true })
+    .where(eq(schema.tenantUsers.id, user.id));
+
+  // Delete the used verification token
+  await db
+    .delete(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.token, token));
+
+  return c.json(
+    {
+      success: true,
+      message: "Email verified successfully",
+    },
+    200
+  );
+});
+
+// ============================================================================
+// POST /auth/forgot-password - Request password reset
+// ============================================================================
+
+const forgotPasswordRoute = createRoute({
+  method: "post",
+  path: "/forgot-password",
+  tags: ["Authentication"],
+  summary: "Request password reset",
+  description: "Send password reset email to user",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            email: z.string().email(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Password reset email sent",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Bad request",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(forgotPasswordRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const { email } = await c.req.json();
+
+  // Find user by email
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.email, email))
+    .get();
+
+  // Always return success even if user not found (security best practice)
+  if (!user) {
+    return c.json(
+      {
+        success: true,
+        message: "If an account exists, a password reset email has been sent",
+      },
+      200
+    );
+  }
+
+  // Generate password reset token
+  const resetToken = crypto.randomUUID();
+  const now = Date.now();
+  const expiresAt = now + 60 * 60 * 1000; // 1 hour
+
+  // Delete old password reset tokens for this user
+  await db
+    .delete(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.identifier, email));
+
+  // Create new password reset token
+  await db.insert(schema.verificationTokens).values({
+    identifier: email,
+    token: resetToken,
+    expiresAt,
+    createdAt: now,
+  });
+
+  // Send password reset email
+  const environment = c.env.ENVIRONMENT || "production";
+  if (environment === "development") {
+    console.log("\n=== PASSWORD RESET (DEV MODE) ===");
+    console.log(`To: ${email}`);
+    console.log(
+      `Reset Link: http://localhost:5173/reset-password?token=${resetToken}`
+    );
+    console.log("=================================\n");
+  } else {
+    // Send actual email via AWS SES in production
+    try {
+      const { sendPasswordResetEmail } = await import(
+        "../services/email/ses.service"
+      );
+      await sendPasswordResetEmail(email, resetToken, c.env);
+    } catch (error) {
+      console.error("Failed to send password reset email:", error);
+      // Don't expose error to user for security
+    }
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: "If an account exists, a password reset email has been sent",
+    },
+    200
+  );
+});
+
+// ============================================================================
+// POST /auth/reset-password - Reset password with token
+// ============================================================================
+
+const resetPasswordRoute = createRoute({
+  method: "post",
+  path: "/reset-password",
+  tags: ["Authentication"],
+  summary: "Reset password",
+  description: "Reset user password with reset token",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            token: z.string(),
+            newPassword: z.string().min(8),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Password reset successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Bad request",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(resetPasswordRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const { token, newPassword } = await c.req.json();
+
+  // Validate password strength
+  if (!isStrongPassword(newPassword)) {
+    return c.json(
+      {
+        success: false,
+        error:
+          "Password must be at least 8 characters with uppercase, lowercase, number, and special character",
+      },
+      400
+    );
+  }
+
+  // Find reset token
+  const resetToken = await db
+    .select()
+    .from(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.token, token))
+    .get();
+
+  if (!resetToken) {
+    return c.json(
+      {
+        success: false,
+        error: "Invalid or expired reset token",
+      },
+      400
+    );
+  }
+
+  // Check if token expired
+  if (resetToken.expiresAt < Date.now()) {
+    // Delete expired token
+    await db
+      .delete(schema.verificationTokens)
+      .where(eq(schema.verificationTokens.token, token));
+
+    return c.json(
+      {
+        success: false,
+        error: "Reset token has expired",
+      },
+      400
+    );
+  }
+
+  // Find user by email
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.email, resetToken.identifier))
+    .get();
+
+  if (!user) {
+    return c.json(
+      {
+        success: false,
+        error: "User not found",
+      },
+      400
+    );
+  }
+
+  // Hash new password
+  const hashedPassword = await hashPassword(newPassword);
+
+  // Update user password
+  await db
+    .update(schema.tenantUsers)
+    .set({ passwordHash: hashedPassword })
+    .where(eq(schema.tenantUsers.id, user.id));
+
+  // Delete the used reset token
+  await db
+    .delete(schema.verificationTokens)
+    .where(eq(schema.verificationTokens.token, token));
+
+  // Invalidate all user sessions
+  await db
+    .delete(schema.tenantUserSessions)
+    .where(eq(schema.tenantUserSessions.userId, user.id));
+
+  // Send password changed notification email
+  const environment = c.env.ENVIRONMENT || "production";
+  if (environment === "development") {
+    console.log("\n=== PASSWORD CHANGED NOTIFICATION (DEV MODE) ===");
+    console.log(`To: ${user.email}`);
+    console.log("Password was successfully changed via reset");
+    console.log("================================================\n");
+  } else {
+    try {
+      const { sendPasswordChangedEmail } = await import(
+        "../services/email/ses.service"
+      );
+      await sendPasswordChangedEmail(user.email, c.env);
+    } catch (error) {
+      console.error("Failed to send password changed email:", error);
+      // Don't fail the request if email fails
+    }
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: "Password reset successfully",
+    },
+    200
+  );
+});
+
+// ============================================================================
+// POST /auth/change-password - Change password for authenticated user
+// ============================================================================
+
+const changePasswordRoute = createRoute({
+  method: "post",
+  path: "/change-password",
+  tags: ["Authentication"],
+  summary: "Change password",
+  description:
+    "Change password for authenticated user (requires current password)",
+  request: {
+    headers: z.object({
+      authorization: z.string().openapi({
+        description: "Bearer JWT token",
+        example: "Bearer eyJhbGc...",
+      }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            currentPassword: z.string(),
+            newPassword: z.string().min(8),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Password changed successfully",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            message: z.string(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: "Bad request",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.boolean(),
+            error: z.string(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(changePasswordRoute, async (c) => {
+  const db = drizzle(c.env.DB, { schema });
+  const authHeader = c.req.header("authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json(
+      {
+        success: false,
+        error: "No token provided",
+      },
+      401
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const jwtSecret = c.env.JWT_SECRET || "default-secret-change-in-production";
+  const decoded = await verifyToken(token, jwtSecret);
+
+  if (!decoded) {
+    return c.json(
+      {
+        success: false,
+        error: "Invalid token",
+      },
+      401
+    );
+  }
+
+  const { currentPassword, newPassword } = await c.req.json();
+
+  // Validate new password strength
+  if (!isStrongPassword(newPassword)) {
+    return c.json(
+      {
+        success: false,
+        error:
+          "Password must be at least 8 characters with uppercase, lowercase, number, and special character",
+      },
+      400
+    );
+  }
+
+  // Get user
+  const user = await db
+    .select()
+    .from(schema.tenantUsers)
+    .where(eq(schema.tenantUsers.id, decoded.userId))
+    .get();
+
+  if (!user || user.status !== "active") {
+    return c.json(
+      {
+        success: false,
+        error: "User not found or inactive",
+      },
+      401
+    );
+  }
+
+  // Verify current password
+  const isValidPassword = await verifyPassword(
+    currentPassword,
+    user.passwordHash
+  );
+
+  if (!isValidPassword) {
+    return c.json(
+      {
+        success: false,
+        error: "Current password is incorrect",
+      },
+      400
+    );
+  }
+
+  // Hash new password
+  const hashedPassword = await hashPassword(newPassword);
+
+  // Update user password
+  await db
+    .update(schema.tenantUsers)
+    .set({ passwordHash: hashedPassword })
+    .where(eq(schema.tenantUsers.id, user.id));
+
+  // Invalidate all user sessions except current one
+  await db
+    .delete(schema.tenantUserSessions)
+    .where(eq(schema.tenantUserSessions.userId, user.id));
+
+  // Send password changed notification email
+  const environment = c.env.ENVIRONMENT || "production";
+  if (environment === "development") {
+    console.log("\n=== PASSWORD CHANGED NOTIFICATION (DEV MODE) ===");
+    console.log(`To: ${user.email}`);
+    console.log("Password was successfully changed");
+    console.log("================================================\n");
+  } else {
+    try {
+      const { sendPasswordChangedEmail } = await import(
+        "../services/email/ses.service"
+      );
+      await sendPasswordChangedEmail(user.email, c.env);
+    } catch (error) {
+      console.error("Failed to send password changed email:", error);
+      // Don't fail the request if email fails
+    }
+  }
+
+  return c.json(
+    {
+      success: true,
+      message: "Password changed successfully",
+    },
+    200
+  );
 });
 
 // ============================================================================
