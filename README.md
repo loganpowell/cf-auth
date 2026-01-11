@@ -1,39 +1,45 @@
-# Auth Service
+# CF-Auth: Multi-Tenant Authorization Service
 
-Production-ready authentication and authorization service built on Cloudflare's edge platform.
+**Status**: ✅ Production - Week 2 Complete  
+**URL**: https://auth-service.logan-607.workers.dev  
+**Version**: 0.4.0
 
 ## 🎉 Current Status
 
-**Phase 2: COMPLETE ✅** (with bonus email verification from Phase 3)
+**Phase 1 Week 2: COMPLETE ✅**
 
-- ✅ Full JWT authentication system operational
-- ✅ Email verification with AWS SES
-- ✅ Qwik v2 demo application with all auth flows
-- ✅ 10 authentication endpoints working
-- ✅ Local development environment ready
+- ✅ Multi-tenant infrastructure deployed to production
+- ✅ D1 database with 9 tables migrated
+- ✅ Admin Dashboard API fully operational
+- ✅ API key authentication fixed and working
+- ✅ Durable Objects deployed with HTTP endpoints
+- ✅ 109/130 tests passing (21 skipped for R2)
+- ✅ E2E test automation complete
 
-See [PHASE2_COMPLETE.md](docs/PHASE2_COMPLETE.md) for detailed accomplishments.
+See [WEEK_2_COMPLETE_SUMMARY.md](../docs/multi-tenant-migration/WEEK_2_COMPLETE_SUMMARY.md) for detailed accomplishments.
 
-> **Note**: Email sending now uses AWS SES for production-grade delivery. See [AWS_SES_SETUP.md](docs/AWS_SES_SETUP.md) for setup instructions.
+> **Note**: Multi-tenant architecture with CSV-based authorization graph. KuzuDB WASM integration planned for Week 4+.
 
 ## ✨ Features
 
-### Currently Working
+### Currently Working (Week 2) ✅
 
-- 🔐 JWT-based authentication with refresh tokens
-- 📧 Email verification with token-based flow
-- 🎨 Qwik v2 demo application with reactive UI
-- 🔒 Secure password hashing (PBKDF2)
-- 💾 D1 database with proper schema
+- 🏢 Multi-tenant hierarchy with namespace isolation
+- 🔑 API key authentication (public, secret, restricted)
+- 👨‍💼 Admin Dashboard API for tenant management
+- 💾 D1 database with tenant data, API keys, sessions
+- 🎯 Durable Objects for real-time state (TenantState, GraphStateCSV)
+- 🗂️ KV namespaces (rate limiting, sessions, cache, mutation log)
 - 🚀 Edge-native on Cloudflare Workers
 
-### Planned (Phase 3+)
+### Planned (Week 3+)
 
-- 👥 OAuth integration (GitHub, Google, Twitter)
-- 🏢 Multi-tenant organizations with hierarchical permissions
-- � MJML email templates
-- 🌐 Multi-domain support
-- � OAuth 2.1 Provider (be an OAuth provider yourself)
+- 👥 End-user authentication (registration, login, sessions)
+- 📧 Email verification with AWS SES
+- 🔐 OAuth integration (GitHub, Google)
+- 📊 CSV-based authorization graph from R2
+- 🔍 KuzuDB WASM for client-side authorization queries (<1ms)
+- 🌐 WebSocket real-time updates
 
 ## 🎯 Quick Start
 

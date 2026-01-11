@@ -9,8 +9,7 @@
  * - Graceful degradation
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { TestDatabase } from "./test-helpers";
+import { describe, it, expect } from "vitest";
 
 describe("Tests", () => {
   it("placeholder", () => expect(true).toBe(true));

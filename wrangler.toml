@@ -4,6 +4,7 @@
 name = "auth-service"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Account ID will be set via environment variable or during deployment
 # account_id = ""
@@ -15,7 +16,7 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "auth-db"
-database_id = "f09cd536-1f82-439c-b507-a30051987b24"
+database_id = "e213ec49-0d7e-4821-a62e-c2cdd0a3f512"
 migrations_dir = "drizzle/migrations"
 
 # KV Namespace bindings (local development)
@@ -30,6 +31,29 @@ id = "808f4bf8980145cb83bc5bf152e9b976"
 [[kv_namespaces]]
 binding = "SESSION_CACHE"
 id = "df4847c009a94363bf7cfdad791268cf"
+
+[[kv_namespaces]]
+binding = "MUTATION_LOG"
+id = "113b41fd1ab445eda25f2cda8944f8b5"
+
+# R2 Bucket bindings
+[[r2_buckets]]
+binding = "TENANT_DATA"
+bucket_name = "tenant-data-dev"
+
+# Durable Objects bindings
+[[durable_objects.bindings]]
+name = "TENANT_STATE"
+class_name = "TenantState"
+
+[[durable_objects.bindings]]
+name = "GRAPH_STATE_CSV"
+class_name = "GraphStateCSV"
+
+# Durable Object migrations (required for DO definitions)
+[[migrations]]
+tag = "v1"
+new_classes = ["TenantState", "GraphStateCSV"]
 
 # Environment variables (will be overridden by .dev.vars locally and secrets in production)
 [vars]

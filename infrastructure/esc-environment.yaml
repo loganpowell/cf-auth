@@ -1,0 +1,61 @@
+# Pulumi ESC Environment Configuration
+
+values:
+  # Environment metadata
+  environmentVariables:
+    ENVIRONMENT: dev
+    AWS_REGION: us-east-2
+
+  # AWS Credentials via OIDC
+  aws:
+    login:
+      fn::open::aws-login:
+        oidc:
+          roleArn: ${pulumiEscRoleArn}
+          sessionName: pulumi-esc-session
+
+  # AWS Secrets Manager - SES Credentials
+  sesCredentials:
+    fn::open::aws-secrets:
+      region: us-east-2
+      login: ${aws.login}
+      get:
+        ses-credentials:
+          secretId: ${sesCredentialsSecretArn}
+
+  # Cloudflare Configuration
+  cloudflare:
+    accountId: ${cloudflareAccountId}
+    apiToken:
+      fn::secret: ${CLOUDFLARE_API_TOKEN}
+
+  # Application Secrets
+  secrets:
+    # JWT Secret for end-user authentication
+    jwtSecret:
+      fn::secret:
+        ciphertext: ${JWT_SECRET_ENCRYPTED}
+
+    # Database encryption key (future use)
+    encryptionKey:
+      fn::secret:
+        ciphertext: ${ENCRYPTION_KEY_ENCRYPTED}
+
+  # Export for Cloudflare Worker
+  workerSecrets:
+    JWT_SECRET: ${secrets.jwtSecret}
+    AWS_ACCESS_KEY_ID: ${sesCredentials.ses-credentials.AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${sesCredentials.ses-credentials.AWS_SECRET_ACCESS_KEY}
+    AWS_REGION: ${environmentVariables.AWS_REGION}
+
+  # Export for Pulumi program
+  pulumiConfig:
+    cloudflare:apiToken: ${cloudflare.apiToken}
+    aws:region: ${environmentVariables.AWS_REGION}
+    cf-auth-infrastructure:cloudflareAccountId: ${cloudflare.accountId}
+
+# Import this environment's exports
+imports:
+  - ${pulumiEscRoleArn}
+  - ${sesCredentialsSecretArn}
+  - ${cloudflareAccountId}

@@ -72,10 +72,16 @@ pulumi preview
 
 This will show you what resources will be created:
 
-- D1 Database (`auth-db`)
-- KV Namespace: Rate Limiter
-- KV Namespace: Token Blacklist
-- KV Namespace: Session Cache
+- **D1 Database** (`auth-db`) - Multi-tenant data storage
+- **KV Namespaces**:
+  - Rate Limiter - Request rate limiting per tenant/IP
+  - Token Blacklist - Revoked JWT tokens
+  - Session Cache - Active user sessions
+  - Mutation Log - Durable Object persistence backup
+- **R2 Bucket** (`tenant-data`) - Per-tenant CSV files (canonical authorization data)
+- **Durable Objects** (configured in wrangler.toml):
+  - TenantState - Per-tenant state management
+  - GraphStateCSV - Per-tenant authorization graph state
 - Email Routing Settings (configuration only)
 
 ### 4. Deploy Infrastructure

@@ -1,12 +1,14 @@
 /**
  * Pulumi Infrastructure as Code
  *
- * Provisions all infrastructure for the auth service:
+ * Provisions all infrastructure for the multi-tenant auth service:
  * - AWS OIDC Providers (GitHub Actions, Pulumi ESC)
  * - AWS IAM Roles and Policies
  * - AWS SES (Email service with automated DNS)
- * - Cloudflare D1 Database
- * - Cloudflare KV Namespaces (rate limiting, token blacklist, session cache)
+ * - Cloudflare D1 Database (multi-tenant data)
+ * - Cloudflare KV Namespaces (rate limiting, token blacklist, session cache, mutation logs)
+ * - Cloudflare R2 Bucket (per-tenant CSV files)
+ * - Cloudflare Durable Objects (per-tenant state management)
  * - Automated DNS records via Route53
  * - Worker secrets via Pulumi ESC
  */
@@ -14,6 +16,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as cloudflare from "@pulumi/cloudflare";
 import * as aws from "@pulumi/aws";
+import * as crypto from "crypto";
 
 // Import email infrastructure (AWS SES + DNS)
 import * as emailInfra from "./email";
@@ -217,6 +220,55 @@ const sessionCacheKV = new cloudflare.WorkersKvNamespace("session-cache-kv", {
   title: `session-cache-kv-${stackName}`,
 });
 
+// KV Namespace for mutation logs (for Durable Objects persistence)
+const mutationLogKV = new cloudflare.WorkersKvNamespace("mutation-log-kv", {
+  accountId: cloudflareAccountId,
+  title: `mutation-log-kv-${stackName}`,
+});
+
+// =============================================================================
+// R2 Bucket for CSV Storage
+// =============================================================================
+
+// R2 bucket for per-tenant CSV files (canonical data source)
+const tenantDataBucket = new cloudflare.R2Bucket("tenant-data-bucket", {
+  accountId: cloudflareAccountId,
+  name: `tenant-data-${stackName}`,
+  location: "WNAM", // Western North America
+});
+
+// =============================================================================
+// Worker Secrets
+// =============================================================================
+
+// Generate a secure JWT secret
+const jwtSecret = new cloudflare.WorkerSecret(
+  "jwt-secret",
+  {
+    accountId: cloudflareAccountId,
+    name: "JWT_SECRET",
+    scriptName: "auth-service", // Must match wrangler.toml name
+    secretText:
+      config.getSecret("jwtSecret") ||
+      pulumi.output(crypto.randomBytes(32).toString("base64")),
+  },
+  {
+    additionalSecretOutputs: ["secretText"],
+  }
+);
+
+// =============================================================================
+// Durable Objects
+// =============================================================================
+
+// Note: Durable Objects are defined in the Worker code and bound via wrangler.toml
+// They don't require separate Pulumi resources, but we export their namespace
+// for configuration purposes.
+
+// Durable Object namespaces (configured in wrangler.toml):
+// - TENANT_STATE: Per-tenant state management and real-time sync
+// - GRAPH_STATE_CSV: Per-tenant authorization graph state (CSV-based)
+
 // Export OIDC and IAM infrastructure
 export const githubOidcProviderArn = githubOidcProvider.arn;
 export const pulumiOidcProviderArn = pulumiOidcProvider.arn;
@@ -234,6 +286,9 @@ export const d1DatabaseId = authDatabase.id;
 export const rateLimiterKvId = rateLimiterKV.id;
 export const tokenBlacklistKvId = tokenBlacklistKV.id;
 export const sessionCacheKvId = sessionCacheKV.id;
+export const mutationLogKvId = mutationLogKV.id;
+export const tenantDataBucketName = tenantDataBucket.name;
+export const jwtSecretName = jwtSecret.name;
 
 // Export email infrastructure outputs at top level for easier access
 export const domainIdentityVerificationToken =
@@ -277,6 +332,31 @@ export const outputs = {
     sessionCache: {
       id: sessionCacheKV.id,
       title: sessionCacheKV.title,
+    },
+    mutationLog: {
+      id: mutationLogKV.id,
+      title: mutationLogKV.title,
+    },
+  },
+  r2Buckets: {
+    tenantData: {
+      name: tenantDataBucket.name,
+      location: "WNAM",
+      purpose: "Per-tenant CSV files (canonical authorization data)",
+    },
+  },
+  durableObjects: {
+    note: "Durable Objects are defined in Worker code (wrangler.toml)",
+    namespaces: [
+      "TENANT_STATE - Per-tenant state management and real-time sync",
+      "GRAPH_STATE_CSV - Per-tenant authorization graph state (CSV-based)",
+    ],
+  },
+  workerSecrets: {
+    jwtSecret: {
+      name: jwtSecret.name,
+      scriptName: "auth-service",
+      purpose: "JWT token signing and verification for end-user authentication",
     },
   },
   // Email infrastructure

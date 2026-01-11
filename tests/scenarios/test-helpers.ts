@@ -8,7 +8,6 @@
 
 // import type { D1Database } from "@cloudflare/workers-types";
 // import { initializeDatabase } from "../../src/db/schema";
-import { generateAPIKey } from "../../src/utils/api-keys";
 
 export interface TestTenant {
   id: string;

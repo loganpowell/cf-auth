@@ -15,6 +15,7 @@ The Admin Dashboard API provides platform administrators with comprehensive tool
 ## Authentication
 
 All Admin Dashboard endpoints require **platform admin API key** with:
+
 - Type: `secret`
 - Tenant: `relish-platform` (system tenant)
 - Environment: `live` or `test`
@@ -33,6 +34,7 @@ curl -H "Authorization: Bearer sk_secret_..." \
 Get platform overview with key metrics.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -53,6 +55,7 @@ Get platform overview with key metrics.
 Create a new tenant with auto-generated API keys.
 
 **Request:**
+
 ```json
 {
   "slug": "acme-corp",
@@ -63,6 +66,7 @@ Create a new tenant with auto-generated API keys.
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "status": "success",
@@ -90,12 +94,14 @@ Create a new tenant with auto-generated API keys.
 ```
 
 **Field Validation:**
+
 - `slug`: Lowercase alphanumeric + hyphens, 3-50 chars, must be unique
 - `name`: 1-200 characters
 - `plan`: One of `free`, `pro`, `enterprise`
 - `parent_id`: Optional, for creating sub-tenants
 
 **Hierarchy Rules:**
+
 - Maximum depth: 5 levels
 - Sub-tenant inherits some permissions from parent
 - Each level adds 1 to depth counter
@@ -107,11 +113,13 @@ Create a new tenant with auto-generated API keys.
 List all tenants with pagination and filtering.
 
 **Query Parameters:**
+
 - `page` (default: 1) - Page number for pagination
 - `limit` (default: 20) - Results per page
 - `status` (default: "active") - Filter by status: `active`, `deleted`, `suspended`
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -142,6 +150,7 @@ List all tenants with pagination and filtering.
 Get detailed information about a specific tenant.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -168,6 +177,7 @@ Get detailed information about a specific tenant.
 Update tenant properties (plan, branding, limits).
 
 **Request:**
+
 ```json
 {
   "plan": "enterprise",
@@ -183,6 +193,7 @@ Update tenant properties (plan, branding, limits).
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -197,6 +208,7 @@ Update tenant properties (plan, branding, limits).
 Soft delete a tenant (preserves data for audit trail).
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -213,6 +225,7 @@ Soft delete a tenant (preserves data for audit trail).
 List all API keys for a specific tenant.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -250,6 +263,7 @@ List all API keys for a specific tenant.
 Create a new API key for a tenant.
 
 **Request:**
+
 ```json
 {
   "type": "secret",
@@ -260,6 +274,7 @@ Create a new API key for a tenant.
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "status": "success",
@@ -282,6 +297,7 @@ Create a new API key for a tenant.
 | `secret` | Backend servers | Full access |
 
 **Environments:**
+
 - `live`: Production environment
 - `test`: Testing environment (higher rate limits, sandbox features)
 
@@ -292,6 +308,7 @@ Create a new API key for a tenant.
 Get platform-wide usage metrics grouped by type.
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -341,16 +358,17 @@ All errors follow standard format:
 
 **Common Error Codes:**
 
-| Code | Reason | Action |
-|------|--------|--------|
-| 400 | Invalid request (validation failure) | Check request format and values |
-| 401 | Missing or invalid API key | Verify authentication header |
-| 403 | Insufficient permissions | Use platform admin key only |
-| 404 | Resource not found | Verify resource ID exists |
-| 409 | Conflict (e.g., duplicate slug) | Change the conflicting value |
-| 500 | Server error | Contact support, check logs |
+| Code | Reason                               | Action                          |
+| ---- | ------------------------------------ | ------------------------------- |
+| 400  | Invalid request (validation failure) | Check request format and values |
+| 401  | Missing or invalid API key           | Verify authentication header    |
+| 403  | Insufficient permissions             | Use platform admin key only     |
+| 404  | Resource not found                   | Verify resource ID exists       |
+| 409  | Conflict (e.g., duplicate slug)      | Change the conflicting value    |
+| 500  | Server error                         | Contact support, check logs     |
 
 **Example Error Response:**
+
 ```json
 {
   "status": "error",
@@ -377,6 +395,7 @@ All errors follow standard format:
 ### Rate Limiting
 
 Admin endpoints have lenient rate limits (designed for occasional administrative tasks):
+
 - 100 requests/minute per API key
 - Burst allowance: 20 requests/second
 
@@ -456,6 +475,7 @@ curl https://api.yourdomain.com/admin/tenants/tenant:acme \
 ### Tenant Router Middleware
 
 The Admin API integrates with the tenant router middleware:
+
 - Creates tenants that become available for routing
 - API keys stored in database for lookup during request validation
 - Tenant context automatically injected into request handlers
@@ -463,6 +483,7 @@ The Admin API integrates with the tenant router middleware:
 ### Database Schema
 
 Uses D1 tables:
+
 - `tenants` - Tenant records with hierarchy info
 - `api_keys` - API keys with type and permissions
 - `accounts` - User accounts linked to tenants
@@ -500,6 +521,7 @@ npm run test -- admin-dashboard.test.ts
 ```
 
 Tests verify:
+
 - Tenant CRUD operations
 - API key generation and security
 - Input validation
@@ -517,6 +539,7 @@ Tests verify:
 ## Support
 
 For issues or questions about the Admin Dashboard API:
+
 1. Check test cases for usage examples
 2. Review error messages and codes above
 3. Check auth logs for authentication failures

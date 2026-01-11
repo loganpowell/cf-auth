@@ -25,6 +25,8 @@ D1_DB_ID=$(pulumi stack output d1DatabaseId)
 RATE_LIMITER_ID=$(pulumi stack output rateLimiterKvId)
 TOKEN_BLACKLIST_ID=$(pulumi stack output tokenBlacklistKvId)
 SESSION_CACHE_ID=$(pulumi stack output sessionCacheKvId)
+MUTATION_LOG_ID=$(pulumi stack output mutationLogKvId)
+TENANT_DATA_BUCKET=$(pulumi stack output tenantDataBucketName)
 
 echo ""
 echo "Retrieved resource IDs:"
@@ -32,6 +34,8 @@ echo "  D1 Database:      $D1_DB_ID"
 echo "  Rate Limiter KV:  $RATE_LIMITER_ID"
 echo "  Token Blacklist:  $TOKEN_BLACKLIST_ID"
 echo "  Session Cache:    $SESSION_CACHE_ID"
+echo "  Mutation Log KV:  $MUTATION_LOG_ID"
+echo "  Tenant Data R2:   $TENANT_DATA_BUCKET"
 echo ""
 
 # Update wrangler.toml
@@ -55,12 +59,17 @@ sed -i.tmp "s/database_id = \"local\"/database_id = \"$D1_DB_ID\"/" "$WRANGLER_T
 sed -i.tmp "s/id = \"local-rate-limiter\"/id = \"$RATE_LIMITER_ID\"/" "$WRANGLER_TOML"
 sed -i.tmp "s/id = \"local-token-blacklist\"/id = \"$TOKEN_BLACKLIST_ID\"/" "$WRANGLER_TOML"
 sed -i.tmp "s/id = \"local-session-cache\"/id = \"$SESSION_CACHE_ID\"/" "$WRANGLER_TOML"
+sed -i.tmp "s/id = \"placeholder-will-be-set-by-pulumi\"/id = \"$MUTATION_LOG_ID\"/" "$WRANGLER_TOML"
+
+# Update R2 bucket name
+sed -i.tmp "s/bucket_name = \"tenant-data-dev\"/bucket_name = \"$TENANT_DATA_BUCKET\"/" "$WRANGLER_TOML"
 
 # Remove temporary file
 rm -f "$WRANGLER_TOML.tmp"
 
 echo "  ✓ Updated D1 database ID"
-echo "  ✓ Updated KV namespace IDs"
+echo "  ✓ Updated KV namespace IDs (4 namespaces)"
+echo "  ✓ Updated R2 bucket name"
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

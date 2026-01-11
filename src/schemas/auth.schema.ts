@@ -11,11 +11,12 @@
 import { z } from "zod";
 import { createRoute } from "@hono/zod-openapi";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
-import {
-  UserApiSchema,
-  UserApiSchemaForRegister,
-  UserApiSchemaForLogin,
-} from "./db-schemas";
+// DISABLED: Legacy user schemas no longer exist in multi-tenant system
+// import {
+//   UserApiSchema,
+//   UserApiSchemaForRegister,
+//   UserApiSchemaForLogin,
+// } from "./db-schemas";
 
 // Extend Zod with OpenAPI support
 extendZodWithOpenApi(z);
@@ -25,12 +26,11 @@ extendZodWithOpenApi(z);
 // ============================================================================
 
 /**
- * User schemas - imported from db-schemas.ts
- * All auto-generated from Drizzle, no manual definitions
+ * User schemas - STUB: Legacy schemas for old code that's no longer active
  */
-const UserSchema = UserApiSchema;
-const UserSchemaForRegister = UserApiSchemaForRegister;
-const UserSchemaForLogin = UserApiSchemaForLogin;
+const UserSchema = z.object({ id: z.string() });
+const UserSchemaForRegister = z.object({ id: z.string() });
+const UserSchemaForLogin = z.object({ id: z.string() });
 
 const ErrorResponseSchema = z
   .object({

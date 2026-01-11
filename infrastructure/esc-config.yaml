@@ -1,0 +1,46 @@
+# Pulumi ESC Environment Configuration
+# To apply: pulumi env edit loganpowell/cf-auth/dev
+
+values:
+  # AWS OIDC Login - uses existing IAM role
+  aws:
+    login:
+      fn::open::aws-login:
+        oidc:
+          # Get this from: pulumi stack output pulumiEscRoleArn
+          roleArn: arn:aws:iam::YOUR_AWS_ACCOUNT:role/pulumi-esc-cf-auth-dev
+          sessionName: pulumi-esc-session
+
+  # AWS Secrets Manager - SES credentials
+  sesCredentials:
+    fn::open::aws-secrets:
+      region: us-east-2
+      login: ${aws.login}
+      get:
+        ses-creds:
+          secretId: cf-auth/ses-credentials-dev
+
+  # Direct Secrets (encrypted by ESC)
+  secrets:
+    jwtSecret:
+      fn::secret: "" # Set this with: pulumi env set
+
+  # Cloudflare Configuration
+  cloudflare:
+    accountId: "6078f37766de72dca3f0bc4b301891b8"
+    apiToken:
+      fn::secret: "" # Set via: pulumi env set ... cloudflare.apiToken "your-token"
+
+  # Export as Pulumi config
+  pulumiConfig:
+    cloudflare:apiToken: ${cloudflare.apiToken}
+    aws:region: us-east-2
+
+  # Export as environment variables for worker
+  environmentVariables:
+    ENVIRONMENT: dev
+    AWS_REGION: us-east-2
+    JWT_SECRET: ${secrets.jwtSecret}
+    AWS_ACCESS_KEY_ID: ${sesCredentials.ses-creds.credentials.accessKeyId}
+    AWS_SECRET_ACCESS_KEY: ${sesCredentials.ses-creds.credentials.secretAccessKey}
+    CLOUDFLARE_API_TOKEN: ${cloudflare.apiToken}

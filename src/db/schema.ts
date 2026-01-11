@@ -167,10 +167,8 @@ export const apiKeys = sqliteTable(
     name: text("name").notNull(), // "Production API Key" or "Mobile App Key"
 
     // Key properties
-    type: text("type", { enum: ["public", "secret", "restricted"] })
-      .notNull(),
-    environment: text("environment", { enum: ["test", "live"] })
-      .notNull(),
+    type: text("type", { enum: ["public", "secret", "restricted"] }).notNull(),
+    environment: text("environment", { enum: ["test", "live"] }).notNull(),
     permissions: text("permissions"), // JSON: scopes/permissions granted to this key
 
     // Lifecycle
@@ -351,12 +349,89 @@ export const verificationTokens = sqliteTable(
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
-    uniqueIndex("idx_verification_token").on(
-      table.identifier,
-      table.token
-    ),
+    uniqueIndex("idx_verification_token").on(table.identifier, table.token),
   ]
 );
+
+// ============================================================================
+// Tenant Users - End-users who belong to tenants (app users)
+// ============================================================================
+
+export const tenantUsers = sqliteTable(
+  "tenant_users",
+  {
+    id: text("id").primaryKey(), // "user:acme-corp:john-doe"
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // User identification
+    email: text("email").notNull(),
+    username: text("username"), // Optional display name/username
+
+    // Authentication
+    passwordHash: text("password_hash").notNull(),
+    emailVerified: integer("email_verified", { mode: "boolean" })
+      .notNull()
+      .default(false),
+
+    // User profile
+    name: text("name"),
+    avatar: text("avatar"), // URL or base64
+    metadata: text("metadata"), // JSON: custom tenant-specific user data
+
+    // Status
+    status: text("status", {
+      enum: ["active", "suspended", "deleted"],
+    })
+      .notNull()
+      .default("active"),
+
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+    lastLoginAt: integer("last_login_at"),
+  },
+  (table) => [
+    uniqueIndex("idx_tenant_user_email").on(table.tenantId, table.email),
+    index("idx_tenant_users_tenant").on(table.tenantId),
+    index("idx_tenant_users_status").on(table.status),
+  ]
+);
+
+// ============================================================================
+// Tenant User Sessions - JWT sessions for tenant users
+// ============================================================================
+
+export const tenantUserSessions = sqliteTable(
+  "tenant_user_sessions",
+  {
+    id: text("id").primaryKey(),
+    sessionToken: text("session_token").notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => tenantUsers.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+
+    // Session metadata
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+
+    // Expiration
+    expiresAt: integer("expires_at").notNull(),
+
+    // Timestamps
+    createdAt: integer("created_at").notNull(),
+    lastActivityAt: integer("last_activity_at").notNull(),
+  },
+  (table) => [
+    index("idx_tenant_session_token").on(table.sessionToken),
+    index("idx_tenant_session_user").on(table.userId),
+  ]
+);
+
 // ==============================================================================
 // TYPE EXPORTS - Use these for type safety
 // ==============================================================================
@@ -397,3 +472,10 @@ export type NewSession = typeof sessions.$inferInsert;
 export type VerificationToken = typeof verificationTokens.$inferSelect;
 export type NewVerificationToken = typeof verificationTokens.$inferInsert;
 
+// Tenant user types
+export type TenantUser = typeof tenantUsers.$inferSelect;
+export type NewTenantUser = typeof tenantUsers.$inferInsert;
+
+// Tenant user session types
+export type TenantUserSession = typeof tenantUserSessions.$inferSelect;
+export type NewTenantUserSession = typeof tenantUserSessions.$inferInsert;

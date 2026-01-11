@@ -10,7 +10,7 @@
  * - Error handling
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 describe("Tests", () => {
   it("placeholder", () => expect(true).toBe(true));

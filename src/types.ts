@@ -58,6 +58,14 @@ export interface Env {
   RATE_LIMITER: KVNamespace;
   TOKEN_BLACKLIST: KVNamespace;
   SESSION_CACHE: KVNamespace;
+  MUTATION_LOG: KVNamespace;
+
+  // R2 Buckets
+  TENANT_DATA: R2Bucket;
+
+  // Durable Objects
+  TENANT_STATE: DurableObjectNamespace;
+  GRAPH_STATE_CSV: DurableObjectNamespace;
 
   // Secrets
   JWT_SECRET: string;

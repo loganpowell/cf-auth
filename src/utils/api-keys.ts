@@ -8,7 +8,7 @@
  * - Permission scoping per key
  */
 
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { D1Database } from "@cloudflare/workers-types";
 import { APIKey } from "../db/schema";
 

@@ -1,9 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createAdminRouter } from "../src/routes/admin/dashboard";
-import type { D1Database } from "@cloudflare/workers-types";
-import { drizzle } from "drizzle-orm/d1";
-import * as schema from "../src/db/schema";
-import { generateAPIKey } from "../src/utils/api-keys";
 
 /**
  * Admin Dashboard API Tests
@@ -20,14 +16,10 @@ import { generateAPIKey } from "../src/utils/api-keys";
 describe("Admin Dashboard API", () => {
   let db: any;
   let router: any;
-  let platformSecretKey: string;
 
   beforeAll(async () => {
     // Setup: Create test database and router
     router = createAdminRouter();
-
-    // Create platform admin API key for testing
-    platformSecretKey = generateAPIKey("secret", "live").secret;
   });
 
   afterAll(async () => {
@@ -41,10 +33,6 @@ describe("Admin Dashboard API", () => {
     it("should require valid admin API key", async () => {
       // Admin endpoints should return 401 without valid key
       // This is enforced by requireAPIKey middleware
-      const env = {
-        DB: {} as D1Database,
-        ENVIRONMENT: "development",
-      };
 
       // Without proper middleware context, this test verifies endpoint structure
       expect(router).toBeDefined();

@@ -1,9 +1,12 @@
 import { Hono } from "hono";
-import type { D1Database } from "@cloudflare/workers-types";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../../db/schema";
-import { requireAPIKey } from "../../middleware/tenant-router";
+import {
+  requireKeyType,
+  tenantRouterMiddleware,
+  type TenantContext,
+} from "../../middleware/tenant-router";
 import { generateAPIKey, hashAPIKey } from "../../utils/api-keys";
 import type { Env } from "../../types";
 
@@ -22,11 +25,32 @@ import type { Env } from "../../types";
 export function createAdminRouter() {
   const router = new Hono<{ Bindings: Env }>();
 
+  // Apply tenant middleware to all admin routes
+  // This extracts tenant context from API keys in Authorization header
+  router.use("/*", async (c, next) => {
+    const db = c.env.DB;
+    return tenantRouterMiddleware(db)(c, next);
+  });
+
+  /**
+   * GET /admin/debug/tenant
+   * Debug endpoint to check tenant context
+   */
+  router.get("/debug/tenant", async (c) => {
+    const tenant = (c as any).tenant as TenantContext | undefined;
+    return c.json({
+      tenant: tenant || null,
+      hasApiKey: !!tenant?.apiKeyId,
+      isValid: tenant?.isValid,
+      error: tenant?.error,
+    });
+  });
+
   /**
    * GET /admin/dashboard
    * Admin overview with key metrics
    */
-  router.get("/dashboard", requireAPIKey("secret"), async (c) => {
+  router.get("/dashboard", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
 
@@ -40,11 +64,12 @@ export function createAdminRouter() {
       const apiKeyCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(schema.apiKeys)
-        .where(eq(schema.apiKeys.revokedAt, null));
+        .where(isNull(schema.apiKeys.revokedAt));
 
-      const totalUsers = await db
-        .select({ count: sql<number>`count(distinct user_id)` })
-        .from(schema.platformAdmins);
+      const totalAdmins = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(schema.platformAdmins)
+        .where(eq(schema.platformAdmins.status, "active"));
 
       return c.json(
         {
@@ -53,7 +78,7 @@ export function createAdminRouter() {
           metrics: {
             activeTenants: tenantCount[0]?.count || 0,
             activeAPIKeys: apiKeyCount[0]?.count || 0,
-            totalUsers: totalUsers[0]?.count || 0,
+            totalAdmins: totalAdmins[0]?.count || 0,
             environment: env.ENVIRONMENT,
           },
         },
@@ -75,14 +100,17 @@ export function createAdminRouter() {
    * GET /admin/tenants
    * List all tenants with pagination and filtering
    */
-  router.get("/tenants", requireAPIKey("secret"), async (c) => {
+  router.get("/tenants", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
-    
+
     // Get query parameters from c.req instead of c.query()
     const page = parseInt(c.req.query("page") || "1");
     const limit = parseInt(c.req.query("limit") || "20");
-    const status = (c.req.query("status") || "active") as "active" | "suspended" | "deleted";
+    const status = (c.req.query("status") || "active") as
+      | "active"
+      | "suspended"
+      | "deleted";
 
     try {
       const offset = (page - 1) * limit;
@@ -128,13 +156,18 @@ export function createAdminRouter() {
    * POST /admin/tenants
    * Create a new tenant with auto-generated API keys
    */
-  router.post("/tenants", requireAPIKey("secret"), async (c) => {
+  router.post("/tenants", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
 
     try {
       const body = await c.req.json();
-      const { slug, name, plan = "free", parentId = null } = body as {
+      const {
+        slug,
+        name,
+        plan = "free",
+        parentId = null,
+      } = body as {
         slug: string;
         name: string;
         plan?: "free" | "pro" | "enterprise";
@@ -157,7 +190,8 @@ export function createAdminRouter() {
         return c.json(
           {
             status: "error",
-            error: "slug must contain only lowercase letters, numbers, and hyphens",
+            error:
+              "slug must contain only lowercase letters, numbers, and hyphens",
           },
           400
         );
@@ -199,7 +233,7 @@ export function createAdminRouter() {
           );
         }
 
-        depth = (parent[0].depth || 0) + 1;
+        depth = (parent[0]!.depth || 0) + 1;
 
         if (depth > 5) {
           return c.json(
@@ -254,34 +288,32 @@ export function createAdminRouter() {
       });
 
       // Insert API keys
-      await db
-        .insert(schema.apiKeys)
-        .values([
-          {
-            id: publicKeyGen.keyId,
-            tenantId,
-            name: "Public API Key",
-            keyPrefix: publicKeyGen.keyPrefix,
-            keyHash: hashAPIKey(publicKeyGen.keyPrefix),
-            type: "public",
-            environment: "live",
-            permissions: null,
-            createdAt: now,
-            revokedAt: null,
-          },
-          {
-            id: secretKeyGen.keyId,
-            tenantId,
-            name: "Secret API Key",
-            keyPrefix: secretKeyGen.keyPrefix,
-            keyHash: secretKeyHash,
-            type: "secret",
-            environment: "live",
-            permissions: null,
-            createdAt: now,
-            revokedAt: null,
-          },
-        ]);
+      await db.insert(schema.apiKeys).values([
+        {
+          id: publicKeyGen.keyId,
+          tenantId,
+          name: "Public API Key",
+          keyPrefix: publicKeyGen.keyPrefix,
+          keyHash: hashAPIKey(publicKeyGen.keyPrefix),
+          type: "public",
+          environment: "live",
+          permissions: null,
+          createdAt: now,
+          revokedAt: null,
+        },
+        {
+          id: secretKeyGen.keyId,
+          tenantId,
+          name: "Secret API Key",
+          keyPrefix: secretKeyGen.keyPrefix,
+          keyHash: secretKeyHash,
+          type: "secret",
+          environment: "live",
+          permissions: null,
+          createdAt: now,
+          revokedAt: null,
+        },
+      ]);
 
       return c.json(
         {
@@ -326,7 +358,7 @@ export function createAdminRouter() {
    * GET /admin/tenants/:id
    * Get tenant details
    */
-  router.get("/tenants/:id", requireAPIKey("secret"), async (c) => {
+  router.get("/tenants/:id", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
     const tenantId = c.req.param("id");
@@ -354,7 +386,7 @@ export function createAdminRouter() {
         .from(schema.apiKeys)
         .where(eq(schema.apiKeys.tenantId, tenantId));
 
-      // Get user count  
+      // Get user count
       const userCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(schema.platformAdmins);
@@ -388,7 +420,7 @@ export function createAdminRouter() {
    * PUT /admin/tenants/:id
    * Update tenant (plan, branding, limits)
    */
-  router.put("/tenants/:id", requireAPIKey("secret"), async (c) => {
+  router.put("/tenants/:id", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
     const tenantId = c.req.param("id");
@@ -455,7 +487,7 @@ export function createAdminRouter() {
    * DELETE /admin/tenants/:id
    * Soft delete tenant
    */
-  router.delete("/tenants/:id", requireAPIKey("secret"), async (c) => {
+  router.delete("/tenants/:id", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
     const tenantId = c.req.param("id");
@@ -510,7 +542,7 @@ export function createAdminRouter() {
    * GET /admin/tenants/:id/keys
    * List API keys for tenant
    */
-  router.get("/tenants/:id/keys", requireAPIKey("secret"), async (c) => {
+  router.get("/tenants/:id/keys", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
     const tenantId = c.req.param("id");
@@ -547,7 +579,7 @@ export function createAdminRouter() {
    * POST /admin/tenants/:id/keys
    * Create API key for tenant
    */
-  router.post("/tenants/:id/keys", requireAPIKey("secret"), async (c) => {
+  router.post("/tenants/:id/keys", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
     const tenantId = c.req.param("id");
@@ -638,27 +670,22 @@ export function createAdminRouter() {
    * GET /admin/metrics
    * Platform-wide usage metrics
    */
-  router.get("/metrics", requireAPIKey("secret"), async (c) => {
+  router.get("/metrics", requireKeyType("secret"), async (c) => {
     const env = c.env;
     const db = drizzle(env.DB, { schema });
 
     try {
-      const metrics = await db
-        .select()
-        .from(schema.usageMetrics);
+      const metrics = await db.select().from(schema.usageMetrics);
 
       // Group by metric type
-      const grouped = metrics.reduce(
-        (acc, metric) => {
-          const key = metric.metricType || "unknown";
-          if (!acc[key]) {
-            acc[key] = [];
-          }
-          acc[key].push(metric);
-          return acc;
-        },
-        {} as Record<string, typeof metrics>
-      );
+      const grouped = metrics.reduce((acc, metric) => {
+        const key = metric.metricType || "unknown";
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push(metric);
+        return acc;
+      }, {} as Record<string, typeof metrics>);
 
       return c.json(
         {

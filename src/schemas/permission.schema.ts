@@ -11,14 +11,23 @@
 import { z } from "zod";
 import { createRoute } from "@hono/zod-openapi";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
-import {
-  RoleWithPermissionsSchema,
-  RoleAssignmentSchema,
-  PermissionAuditSchema,
-} from "./db-schemas";
+// DISABLED: Legacy permission schemas no longer exist in multi-tenant system
+// import {
+//   RoleWithPermissionsSchema,
+//   RoleAssignmentSchema,
+//   PermissionAuditSchema,
+// } from "./db-schemas";
 
 // Extend Zod with OpenAPI support
 extendZodWithOpenApi(z);
+
+// ============================================================================
+// STUB Schemas: Legacy schemas for old code that's no longer active
+// ============================================================================
+
+const RoleWithPermissionsSchema = z.object({ id: z.string() });
+const RoleAssignmentSchema = z.object({ id: z.string() });
+const PermissionAuditSchema = z.object({ id: z.string() });
 
 // ============================================================================
 // Import Auto-Generated Schemas from db-schemas.ts

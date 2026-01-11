@@ -74,16 +74,51 @@ export async function extractTenant(
   }
 
   // Strategy 3: API Key in Authorization header
-  // Supports: Bearer sk_live_xxx or pk_live_xxx
+  // Supports: Bearer sk_live_xxx:secret or Bearer pk_live_xxx
   const authHeader = request.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
-    const keyPrefix = authHeader.slice(7); // Remove "Bearer "
+    const fullKey = authHeader.slice(7); // Remove "Bearer "
+
+    // Parse key format: sk_live_xxx:secret or pk_live_xxx
+    const [keyPrefix, keySecret] = fullKey.includes(":")
+      ? fullKey.split(":", 2)
+      : [fullKey, undefined];
+
     const stmt = db.prepare(
       "SELECT * FROM api_keys WHERE key_prefix = ? AND revoked_at IS NULL"
     );
     const apiKey = (await stmt.bind(keyPrefix).first()) as any | undefined;
 
     if (apiKey) {
+      // For secret keys, validate the secret component
+      if (apiKey.type === "secret") {
+        if (!keySecret) {
+          return {
+            tenantId: "",
+            slug: "",
+            tenant: null,
+            isValid: false,
+            error: "Secret API key requires format: sk_live_xxx:secret",
+          };
+        }
+
+        // Validate secret by comparing hashes
+        const { createHash } = await import("node:crypto");
+        const providedHash = createHash("sha256")
+          .update(`${keyPrefix}:${keySecret}`)
+          .digest("hex");
+
+        if (apiKey.key_hash !== providedHash) {
+          return {
+            tenantId: "",
+            slug: "",
+            tenant: null,
+            isValid: false,
+            error: "Invalid API key secret",
+          };
+        }
+      }
+
       const tenantStmt = db.prepare("SELECT * FROM tenants WHERE id = ?");
       const tenant = (await tenantStmt.bind(apiKey.tenant_id).first()) as
         | Tenant
@@ -209,7 +244,8 @@ export function requireAPIKey() {
 export function requireKeyType(type: "public" | "secret" | "restricted") {
   return async (c: Context, next: any) => {
     const tenant = (c as any).tenant as TenantContext | undefined;
-    const db = (c as any).db as D1Database;
+    const env = (c as any).env;
+    const db = env.DB as D1Database;
 
     if (!tenant?.apiKeyId) {
       return c.json(
@@ -250,6 +286,11 @@ function isMainDomain(hostname: string): boolean {
     "127.0.0.1",
     "auth.example.com", // primary domain
   ];
+
+  // Check if it's a Cloudflare Workers domain (*.workers.dev)
+  if (hostname.endsWith(".workers.dev")) {
+    return true;
+  }
 
   return mainDomains.some((domain) => hostname === domain);
 }

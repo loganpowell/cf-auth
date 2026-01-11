@@ -1,0 +1,7 @@
+name: cf-auth-infrastructure
+runtime: nodejs
+description: Cloudflare and AWS infrastructure for cf-auth service
+
+# Import ESC environment for secret management
+environment:
+  - loganpowell/cf-auth/dev
