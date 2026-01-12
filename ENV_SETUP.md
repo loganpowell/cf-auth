@@ -5,15 +5,17 @@ This project uses a `.env` file for local development configuration. **Never com
 ## Quick Setup
 
 1. **Copy the example file:**
+
    ```bash
    cp .env.example .env
    ```
 
 2. **Get your admin API key** from the database:
+
    ```bash
    # Option 1: Query D1 database directly
    npx wrangler d1 execute auth-db --command "SELECT * FROM api_keys WHERE permissions = '*'"
-   
+
    # Option 2: Use admin script (if available)
    npm run admin:get-key
    ```
@@ -55,12 +57,14 @@ wrangler secret put AWS_SECRET_ACCESS_KEY
 ## Security Notes
 
 ✅ **Good Practices:**
+
 - `.env` is in `.gitignore` (never commit it)
 - Use `.env.example` for documentation
 - Rotate keys regularly
 - Use different keys for dev/staging/prod
 
 ❌ **Never:**
+
 - Commit `.env` to git
 - Share your `.env` file
 - Use production keys in development
@@ -69,16 +73,19 @@ wrangler secret put AWS_SECRET_ACCESS_KEY
 ## Troubleshooting
 
 **"ADMIN_API_KEY not found"**
+
 - Make sure you copied `.env.example` to `.env`
 - Verify the key exists in your database
 - Check that `.env` is in the project root
 
 **"Permission denied"**
+
 - Make sure your API key has the correct permissions
 - Check that it's not expired/revoked
 - Verify the key format: `rk_live_PREFIX:SECRET`
 
 **Scripts not loading .env**
+
 - Some scripts auto-load (e.g., `e2e-test.sh`)
 - For manual commands, use: `source .env` first
 - Or prefix: `export $(grep -v '^#' .env | xargs)`

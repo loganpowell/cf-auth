@@ -9,11 +9,13 @@ The admin API key authentication is fully functional.
 **Admin API Key Setup:**
 
 1. Copy environment template:
+
    ```bash
    cp .env.example .env
    ```
 
 2. Set your admin key in `.env`:
+
    ```bash
    ADMIN_API_KEY=rk_live_YOUR_KEY:YOUR_SECRET
    BASE_URL=https://auth-service.your-workers.dev

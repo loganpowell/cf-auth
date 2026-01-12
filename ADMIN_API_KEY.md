@@ -9,11 +9,13 @@ The admin API key authentication has been fixed and is now working correctly!
 **Setup:**
 
 1. Copy `.env.example` to `.env`:
+
    ```bash
    cp .env.example .env
    ```
 
 2. Get your admin API key from the database:
+
    ```bash
    npm run admin:get-key
    # Or query your D1 database directly
@@ -26,6 +28,7 @@ The admin API key authentication has been fixed and is now working correctly!
    ```
 
 **Example Key Structure:**
+
 ```
 Full Key: rk_live_EXAMPLE_KEY_PREFIX:EXAMPLE_SECRET_HASH
 Key ID: key_0b678e44ec2e6341
