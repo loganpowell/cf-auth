@@ -7,13 +7,15 @@ The admin API key authentication has been fixed and is now working correctly!
 ### Bootstrap Admin API Key
 
 ```
-Full Key: sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805
+Full Key: rk_live_EXAMPLE_KEY_PREFIX:EXAMPLE_SECRET_HASH_DO_NOT_USE_IN_PRODUCTION
 Key ID: key_0b678e44ec2e6341
 Tenant: tenant_000 (relish-platform)
 Type: secret
 Environment: live
 Permissions: ["*"]
 ```
+
+⚠️ **Note:** Replace with your actual admin key from the database. See `.env.example` for configuration.
 
 ### Usage
 
@@ -26,8 +28,8 @@ Authorization: Bearer {keyPrefix}:{keySecret}
 **Example Request:**
 
 ```bash
-curl -X GET "https://auth-service.logan-607.workers.dev/admin/tenants" \
-  -H "Authorization: Bearer sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805"
+curl -X GET "https://auth-service.example.workers.dev/admin/tenants" \
+  -H "Authorization: Bearer rk_live_YOUR_KEY_PREFIX:YOUR_SECRET_HASH"
 ```
 
 ### API Key Format

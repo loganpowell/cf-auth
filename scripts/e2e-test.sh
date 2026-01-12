@@ -4,8 +4,8 @@
 
 set -e
 
-BASE_URL="https://auth-service.logan-607.workers.dev"
-ADMIN_KEY="sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805"
+BASE_URL="${BASE_URL:-https://auth-service.example.workers.dev}"
+ADMIN_KEY="${ADMIN_KEY:-rk_live_EXAMPLE:SET_THIS_FROM_ENV}"
 
 echo "🧪 Multi-Tenant Infrastructure E2E Tests"
 echo "=========================================="

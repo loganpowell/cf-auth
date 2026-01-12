@@ -9,19 +9,21 @@ The admin API key authentication is fully functional.
 **Admin API Key:**
 
 ```
-sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805
+rk_live_EXAMPLE_KEY:EXAMPLE_SECRET_HASH
 ```
+
+⚠️ **Note:** Use your actual admin key from the database, not this example.
 
 **Test Commands:**
 
 ```bash
 # List all tenants
-curl -s "https://auth-service.logan-607.workers.dev/admin/tenants" \
-  -H "Authorization: Bearer sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805" | jq .
+curl -s "https://auth-service.example.workers.dev/admin/tenants" \
+  -H "Authorization: Bearer rk_live_YOUR_KEY:YOUR_SECRET" | jq .
 
 # Create a new tenant
-curl -s -X POST "https://auth-service.logan-607.workers.dev/admin/tenants" \
-  -H "Authorization: Bearer sk_live_b3BUwJF8cQHRmGOTNPtAVKvg22UBp:d98730fc6e18df352373d43a7fa0830a3cab3afc0c542139a36c8270813c4805" \
+curl -s -X POST "https://auth-service.example.workers.dev/admin/tenants" \
+  -H "Authorization: Bearer rk_live_YOUR_KEY:YOUR_SECRET" \
   -H "Content-Type: application/json" \
   -d '{
     "slug": "test-tenant",
