@@ -28,6 +28,8 @@
  */
 
 import { DurableObject } from "cloudflare:workers";
+import type { CompiledSchema } from "../types/schema";
+import { getDefaultSchema } from "../types/schema";
 
 export interface Env {
   DB: D1Database;
@@ -51,14 +53,125 @@ interface GraphState {
   version: number;
   edges: Map<string, Edge>;
   lastSync: number;
+  schema?: CompiledSchema; // Phase 2: Dynamic schema support
+  schemaVersion?: number;
 }
 
 export class GraphStateCSV extends DurableObject<Env> {
   private state: GraphState | null = null;
   private connections: Set<WebSocket> = new Set();
+  private orgId: string = ""; // Set from request path
+
+  // Phase 2: Dynamic indexes for arbitrary entity/relationship types
+  private entityIndexes = new Map<string, Map<string, any>>(); // entity name -> id -> entity data
+  private relationshipIndexes = new Map<string, Map<string, Set<string>>>(); // rel name -> from_id -> Set<to_id>
 
   constructor(state: DurableObjectState, env: Env) {
     super(state, env);
+  }
+
+  /**
+   * Ensure schema is loaded for this organization
+   * Phase 2: Load schema from R2, or create default if doesn't exist
+   */
+  private async ensureSchemaLoaded(orgId: string): Promise<void> {
+    if (this.state?.schema && this.orgId === orgId) {
+      return; // Schema already loaded
+    }
+
+    this.orgId = orgId;
+
+    // Try to load schema from R2
+    const schemaKey = `${orgId}/schema/current.json`;
+    const schemaObj = await this.env.TENANT_DATA.get(schemaKey);
+
+    if (schemaObj) {
+      // Load existing schema
+      const schema = JSON.parse(await schemaObj.text()) as CompiledSchema;
+      if (!this.state) {
+        this.state = {
+          tenantId: orgId,
+          version: 0,
+          edges: new Map(),
+          lastSync: Date.now(),
+          schema,
+          schemaVersion: schema.version,
+        };
+      } else {
+        this.state.schema = schema;
+        this.state.schemaVersion = schema.version;
+      }
+    } else {
+      // Create default schema for new org
+      await this.createDefaultSchema(orgId);
+    }
+  }
+
+  /**
+   * Create default schema for new organization
+   * Phase 2: Stores default schema in R2
+   */
+  private async createDefaultSchema(orgId: string): Promise<void> {
+    const schema = getDefaultSchema();
+
+    // Store schema in R2
+    const schemaKey = `${orgId}/schema/current.json`;
+    await this.env.TENANT_DATA.put(schemaKey, JSON.stringify(schema, null, 2));
+
+    // Store version history
+    const versionKey = `${orgId}/schema/versions/v1.json`;
+    await this.env.TENANT_DATA.put(
+      versionKey,
+      JSON.stringify(
+        {
+          ...schema,
+          createdAt: Date.now(),
+          createdBy: "system",
+        },
+        null,
+        2
+      )
+    );
+
+    // Update state
+    if (!this.state) {
+      this.state = {
+        tenantId: orgId,
+        version: 0,
+        edges: new Map(),
+        lastSync: Date.now(),
+        schema,
+        schemaVersion: 1,
+      };
+    } else {
+      this.state.schema = schema;
+      this.state.schemaVersion = 1;
+    }
+
+    console.log(`[GraphStateCSV] Created default schema for org: ${orgId}`);
+  }
+
+  /**
+   * Phase 2: Get or create entity index for a specific entity type
+   */
+  private getOrCreateEntityIndex(entityName: string): Map<string, any> {
+    if (!this.entityIndexes.has(entityName)) {
+      this.entityIndexes.set(entityName, new Map());
+    }
+    return this.entityIndexes.get(entityName)!;
+  }
+
+  /**
+   * Phase 2: Get or create relationship index for a specific relationship type
+   * Structure: from_id -> Set<to_id>
+   */
+  private getOrCreateRelationshipIndex(
+    relName: string
+  ): Map<string, Set<string>> {
+    if (!this.relationshipIndexes.has(relName)) {
+      this.relationshipIndexes.set(relName, new Map());
+    }
+    return this.relationshipIndexes.get(relName)!;
   }
 
   /**
@@ -67,22 +180,161 @@ export class GraphStateCSV extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Extract orgId from URL or header
+    // Expected URL format: https://do-id.workers.dev/org/{orgId}/...
+    const orgIdMatch = url.pathname.match(/^\/org\/([^\/]+)/);
+    const orgId =
+      orgIdMatch?.[1] || request.headers.get("X-Org-ID") || "org_default";
+
+    // Ensure schema is loaded before processing request
+    await this.ensureSchemaLoaded(orgId);
+
     // WebSocket upgrade for real-time graph sync
     if (request.headers.get("Upgrade") === "websocket") {
       return this.handleWebSocket(request);
     }
 
     // HTTP API routes
-    switch (url.pathname) {
+    const pathWithoutOrg = url.pathname.replace(`/org/${orgId}`, "");
+    switch (pathWithoutOrg) {
       case "/validate":
         return this.validateEdgeProof(request);
       case "/reload":
         return this.reloadFromR2(request);
       case "/state":
         return this.getState();
+      case "/schema":
+        return this.getSchema();
+      case "/schema/update":
+        return this.updateSchema(request);
       default:
         return new Response("Not Found", { status: 404 });
     }
+  }
+
+  /**
+   * Update schema and hot reload data
+   * Phase 2: Support schema updates without full restart
+   */
+  private async updateSchema(request: Request): Promise<Response> {
+    if (request.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405 });
+    }
+
+    try {
+      const newSchema = (await request.json()) as CompiledSchema;
+
+      // Validate schema has required fields
+      if (
+        !newSchema.version ||
+        !newSchema.entities ||
+        !newSchema.relationships
+      ) {
+        return new Response(
+          JSON.stringify({ error: "Invalid schema format" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Store new schema in R2
+      const schemaKey = `${this.orgId}/schema/current.json`;
+      await this.env.TENANT_DATA.put(
+        schemaKey,
+        JSON.stringify(newSchema, null, 2)
+      );
+
+      // Store version history
+      const versionKey = `${this.orgId}/schema/versions/v${newSchema.version}.json`;
+      await this.env.TENANT_DATA.put(
+        versionKey,
+        JSON.stringify(
+          {
+            ...newSchema,
+            updatedAt: Date.now(),
+            updatedBy: request.headers.get("X-User-ID") || "unknown",
+          },
+          null,
+          2
+        )
+      );
+
+      // Update state with new schema
+      if (this.state) {
+        this.state.schema = newSchema;
+        this.state.schemaVersion = newSchema.version;
+      }
+
+      // Reload data based on new schema
+      const edges = await this.loadDataFromSchema(this.orgId);
+      if (this.state) {
+        this.state.edges = edges;
+        this.state.version = Date.now();
+        this.state.lastSync = Date.now();
+      }
+
+      // Broadcast schema update to connected clients
+      await this.broadcastSchemaUpdate(newSchema);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          version: newSchema.version,
+          edgeCount: edges.size,
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+  }
+
+  /**
+   * Broadcast schema update to connected clients
+   * Phase 2: Notify clients of schema changes
+   */
+  private async broadcastSchemaUpdate(schema: CompiledSchema): Promise<void> {
+    const message = JSON.stringify({
+      type: "schema_update",
+      schema,
+      timestamp: Date.now(),
+    });
+
+    for (const ws of this.connections) {
+      try {
+        ws.send(message);
+      } catch (error) {
+        console.error("Failed to send schema update to WebSocket:", error);
+        this.connections.delete(ws);
+      }
+    }
+  }
+
+  /**
+   * Get current schema for this organization
+   * Phase 2: Return compiled schema
+   */
+  private async getSchema(): Promise<Response> {
+    if (!this.state?.schema) {
+      return new Response(JSON.stringify({ error: "Schema not loaded" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify(this.state.schema, null, 2), {
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   /**
@@ -271,16 +523,23 @@ export class GraphStateCSV extends DurableObject<Env> {
 
   /**
    * Load CSV files from R2 and parse into edge map
+   * Phase 2: Support dynamic entity/relationship loading based on schema
    */
   private async loadCSVFromR2(tenantId: string): Promise<Map<string, Edge>> {
     const edges = new Map<string, Edge>();
 
-    // Load the main graph.csv file
+    // Phase 2: If schema is loaded, use it to load entity-specific CSVs
+    if (this.state?.schema) {
+      return this.loadDataFromSchema(tenantId);
+    }
+
+    // Fallback: Load the main graph.csv file (Phase 1 compatibility)
     const key = `tenants/${tenantId}/graph.csv`;
     const object = await this.env.TENANT_DATA.get(key);
 
     if (!object) {
-      throw new Error(`CSV file not found: ${key}`);
+      console.warn(`CSV file not found: ${key}, returning empty graph`);
+      return edges;
     }
 
     const csvText = await object.text();
@@ -318,6 +577,136 @@ export class GraphStateCSV extends DurableObject<Env> {
       edges.set(edge.id, edge);
     }
 
+    return edges;
+  }
+
+  /**
+   * Phase 2: Load data based on dynamic schema
+   * Loads entity CSVs and relationship CSVs separately
+   * Populates dynamic indexes for all entity and relationship types
+   */
+  private async loadDataFromSchema(
+    tenantId: string
+  ): Promise<Map<string, Edge>> {
+    const edges = new Map<string, Edge>();
+
+    if (!this.state?.schema) {
+      throw new Error("Schema not loaded");
+    }
+
+    const schema = this.state.schema;
+
+    // Clear existing indexes
+    this.entityIndexes.clear();
+    this.relationshipIndexes.clear();
+
+    // Load entity CSVs into entity indexes
+    for (const entity of schema.entities) {
+      const csvKey = `${tenantId}/data/${entity.name}.csv`;
+      const csvObj = await this.env.TENANT_DATA.get(csvKey);
+
+      if (!csvObj) {
+        console.log(`[GraphStateCSV] No data file for entity: ${entity.name}`);
+        continue;
+      }
+
+      const csvText = await csvObj.text();
+      const rows = this.parseCSV(csvText);
+
+      // Get or create entity index
+      const entityIndex = this.getOrCreateEntityIndex(entity.name);
+
+      // Index entities by their primary key (id)
+      for (const row of rows) {
+        const id = row.id;
+        if (!id) {
+          console.warn(`Invalid ${entity.name} row: missing id`, row);
+          continue;
+        }
+        entityIndex.set(id, row);
+      }
+
+      console.log(
+        `[GraphStateCSV] Indexed ${rows.length} entities for ${entity.name}`
+      );
+    }
+
+    // Load relationship CSVs (these become edges in the graph)
+    for (const rel of schema.relationships) {
+      const csvKey = `${tenantId}/data/${rel.name}.csv`;
+      const csvObj = await this.env.TENANT_DATA.get(csvKey);
+
+      if (!csvObj) {
+        console.log(
+          `[GraphStateCSV] No data file for relationship: ${rel.name}`
+        );
+        continue;
+      }
+
+      const csvText = await csvObj.text();
+      const rows = this.parseCSV(csvText);
+
+      // Get or create relationship index
+      const relIndex = this.getOrCreateRelationshipIndex(rel.name);
+
+      // Parse relationship rows into edges
+      // Expected format: from_id,to_id[,property1,property2,...]
+      for (const row of rows) {
+        const fromId = row.from_id || row.source || "";
+        const toId = row.to_id || row.target || "";
+
+        if (!fromId || !toId) {
+          console.warn(
+            `Invalid ${rel.name} row: missing from_id or to_id`,
+            row
+          );
+          continue;
+        }
+
+        // Populate relationship index: from_id -> Set<to_id>
+        if (!relIndex.has(fromId)) {
+          relIndex.set(fromId, new Set());
+        }
+        relIndex.get(fromId)!.add(toId);
+
+        // Format: {entity}:{id}
+        const source = `${rel.from}:${fromId}`;
+        const target = `${rel.to}:${toId}`;
+        const edgeId = `${source}:${rel.name}:${target}`;
+
+        // Extract properties from row (e.g., permission)
+        const properties: Record<string, string> = {};
+        for (const prop of rel.properties) {
+          const value = row[prop.name];
+          if (value !== undefined) {
+            properties[prop.name] = value;
+          }
+        }
+
+        const edge: Edge = {
+          id: edgeId,
+          source,
+          target,
+          type: rel.name,
+          permission: properties.permission || rel.name,
+          revokedAt: null,
+        };
+
+        edges.set(edge.id, edge);
+      }
+
+      console.log(
+        `[GraphStateCSV] Loaded ${rows.length} edges for ${rel.name}`
+      );
+    }
+
+    console.log(`[GraphStateCSV] Total edges loaded: ${edges.size}`);
+    console.log(
+      `[GraphStateCSV] Entity indexes: ${this.entityIndexes.size} types`
+    );
+    console.log(
+      `[GraphStateCSV] Relationship indexes: ${this.relationshipIndexes.size} types`
+    );
     return edges;
   }
 

@@ -1,0 +1,6 @@
+from_id,to_id,permission
+alice,doc1,read
+alice,doc2,write
+bob,doc1,read
+bob,doc2,read
+bob,doc3,admin

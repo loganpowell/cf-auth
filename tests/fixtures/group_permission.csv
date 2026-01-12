@@ -1,0 +1,4 @@
+from_id,to_id,permission
+engineers,doc1,read
+engineers,doc2,read
+admins,doc3,admin
