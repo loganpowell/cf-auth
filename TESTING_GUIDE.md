@@ -6,24 +6,36 @@
 
 The admin API key authentication is fully functional.
 
-**Admin API Key:**
+**Admin API Key Setup:**
 
-```
-rk_live_EXAMPLE_KEY:EXAMPLE_SECRET_HASH
-```
+1. Copy environment template:
+   ```bash
+   cp .env.example .env
+   ```
 
-⚠️ **Note:** Use your actual admin key from the database, not this example.
+2. Set your admin key in `.env`:
+   ```bash
+   ADMIN_API_KEY=rk_live_YOUR_KEY:YOUR_SECRET
+   BASE_URL=https://auth-service.your-workers.dev
+   ```
+
+3. Scripts will automatically load from `.env`
+
+⚠️ **Note:** Get your actual admin key from the database. Never commit `.env`.
 
 **Test Commands:**
 
 ```bash
+# Load environment variables
+source .env
+
 # List all tenants
-curl -s "https://auth-service.example.workers.dev/admin/tenants" \
-  -H "Authorization: Bearer rk_live_YOUR_KEY:YOUR_SECRET" | jq .
+curl -s "$BASE_URL/admin/tenants" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" | jq .
 
 # Create a new tenant
-curl -s -X POST "https://auth-service.example.workers.dev/admin/tenants" \
-  -H "Authorization: Bearer rk_live_YOUR_KEY:YOUR_SECRET" \
+curl -s -X POST "$BASE_URL/admin/tenants" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "slug": "test-tenant",

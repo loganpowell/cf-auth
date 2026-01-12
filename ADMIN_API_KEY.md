@@ -6,8 +6,28 @@ The admin API key authentication has been fixed and is now working correctly!
 
 ### Bootstrap Admin API Key
 
+**Setup:**
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Get your admin API key from the database:
+   ```bash
+   npm run admin:get-key
+   # Or query your D1 database directly
+   ```
+
+3. Add to `.env`:
+   ```bash
+   ADMIN_API_KEY=rk_live_YOUR_PREFIX:YOUR_SECRET_HASH
+   BASE_URL=https://auth-service.your-workers.dev
+   ```
+
+**Example Key Structure:**
 ```
-Full Key: rk_live_EXAMPLE_KEY_PREFIX:EXAMPLE_SECRET_HASH_DO_NOT_USE_IN_PRODUCTION
+Full Key: rk_live_EXAMPLE_KEY_PREFIX:EXAMPLE_SECRET_HASH
 Key ID: key_0b678e44ec2e6341
 Tenant: tenant_000 (relish-platform)
 Type: secret
@@ -15,7 +35,7 @@ Environment: live
 Permissions: ["*"]
 ```
 
-⚠️ **Note:** Replace with your actual admin key from the database. See `.env.example` for configuration.
+⚠️ **Security:** Never commit `.env` to git (it's in `.gitignore`)
 
 ### Usage
 

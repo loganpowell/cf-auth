@@ -4,8 +4,13 @@
 
 set -e
 
+# Load environment variables from .env if it exists
+if [ -f "$(dirname "$0")/../.env" ]; then
+    export $(grep -v '^#' "$(dirname "$0")/../.env" | xargs)
+fi
+
 BASE_URL="${BASE_URL:-https://auth-service.example.workers.dev}"
-ADMIN_KEY="${ADMIN_KEY:-rk_live_EXAMPLE:SET_THIS_FROM_ENV}"
+ADMIN_KEY="${ADMIN_API_KEY:-rk_live_EXAMPLE:SET_THIS_FROM_ENV}"
 
 echo "🧪 Multi-Tenant Infrastructure E2E Tests"
 echo "=========================================="
